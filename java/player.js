@@ -1,395 +1,429 @@
-document.addEventListener("DOMContentLoaded", () => {
-document.querySelectorAll('.neo-player-wrapper').forEach((wrap, wrapIndex) => {
-initPlayer(wrap, wrapIndex);
-});
+(function() {
+  // 1. DOM Ready
+  document.addEventListener('DOMContentLoaded', function() {
+    const wrappers = document.querySelectorAll('.neo-player-wrapper');
+    if (!wrappers.length) return;
 
-function initPlayer(wrap, wrapIndex) {
-const preview = wrap.querySelector(".neo-preview");
-const bigPlay = wrap.querySelector(".neo-big-play");
-const loader = wrap.querySelector(".neo-loader");
-const player = wrap.querySelector(".neo-video");
-const controls = wrap.querySelector(".neo-controls");
+    wrappers.forEach((wrap, index) => initPlayer(wrap, index));
+  });
 
-const btnPlay = wrap.querySelector(".neo-play");
-const playIcon = wrap.querySelector(".neo-play-icon");
-const btnFull = wrap.querySelector(".neo-fullscreen");
-const fullscreenIcon = wrap.querySelector(".neo-fullscreen-icon");
-const btnPip = wrap.querySelector(".neo-pip");
-const pipIcon = wrap.querySelector(".neo-pip-icon");
-const vol = wrap.querySelector(".neo-volume");
-const qual = wrap.querySelector(".neo-quality");
-const speed = wrap.querySelector(".neo-speed");
+  /**
+   * Initialize a single player wrapper
+   * @param {HTMLElement} wrap
+   * @param {number} wrapIndex
+   */
+  function initPlayer(wrap, wrapIndex) {
+    // 2. Detect HLS native (will be used later)
+    const isNativeHls = canPlayNativeHls();
 
-const bar = wrap.querySelector(".neo-progress");
-const fill = wrap.querySelector(".neo-progress-filled");
+    // 3. Init video element and UI refs
+    const preview = wrap.querySelector('.neo-preview');
+    const bigPlay = wrap.querySelector('.neo-big-play');
+    const loader = wrap.querySelector('.neo-loader');
+    const player = wrap.querySelector('.neo-video');
+    const controls = wrap.querySelector('.neo-controls');
 
-// ══════════════════════════════════════════════════
-// ???? ДАННЫЕ ВИДЕО ДЛЯ КАЖДОГО ПЛЕЕРА
-// ══════════════════════════════════════════════════
-const videosData = {
-0: { // neo-player-1
-preview: "https://static.tildacdn.com/vide6364-3939-4130-b261-383838353831/output_small.mp4",
-hls: "https://cdn.jsdelivr.net/gh/panchousxml/video/3min/master.m3u8"
-},
-1: { // neo-player-2
-preview: "https://static.tildacdn.com/vide3564-3237-4635-a634-313662346231/output_compressed.mp4",
-hls: "https://cdn.jsdelivr.net/gh/panchousxml/video/3min/master.m3u8"
-}
-};
+    const btnPlay = wrap.querySelector('.neo-play');
+    const playIcon = wrap.querySelector('.neo-play-icon');
+    const btnFull = wrap.querySelector('.neo-fullscreen');
+    const fullscreenIcon = wrap.querySelector('.neo-fullscreen-icon');
+    const btnPip = wrap.querySelector('.neo-pip');
+    const vol = wrap.querySelector('.neo-volume');
+    const qual = wrap.querySelector('.neo-quality');
+    const speed = wrap.querySelector('.neo-speed');
 
-const videoData = videosData[wrapIndex];
+    const bar = wrap.querySelector('.neo-progress');
+    const fill = wrap.querySelector('.neo-progress-filled');
 
-let isDragging = false;
-let pauseTimeout = null;
-let previewLoaded = false;
-let hlsInstance = null;
+    // 4. Init preview and data
+    const videosData = {
+      0: {
+        preview: 'https://static.tildacdn.com/vide6364-3939-4130-b261-383838353831/output_small.mp4',
+        hls: 'https://cdn.jsdelivr.net/gh/panchousxml/video/3min/master.m3u8'
+      },
+      1: {
+        preview: 'https://static.tildacdn.com/vide3564-3237-4635-a634-313662346231/output_compressed.mp4',
+        hls: 'https://cdn.jsdelivr.net/gh/panchousxml/video/3min/master.m3u8'
+      }
+    };
 
-// ══════════════════════════════════════════════════
-// ???? LAZY LOAD ПРЕВЬЮ (за 50px)
-// ══════════════════════════════════════════════════
-const previewObserver = new IntersectionObserver((entries) => {
-if (entries[0].isIntersecting && !previewLoaded) {
-previewLoaded = true;
-preview.src = videoData.preview;
-preview.autoplay = true;
-previewObserver.unobserve(wrap);
-}
-}, { rootMargin: '50px' });
+    const videoData = videosData[wrapIndex];
 
-previewObserver.observe(wrap);
+    let isDragging = false;
+    let pauseTimeout = null;
+    let previewLoaded = false;
+    let hlsInstance = null;
+    let manifestReady = false;
 
-// ══════════════════════════════════════════════════
-// ???? ИНИЦИАЛИЗАЦИЯ
-// ══════════════════════════════════════════════════
-preview.style.display = "block";
-bigPlay.style.display = "flex";
-player.style.display = "none";
-controls.style.display = "none";
-if (qual) {
- qual.disabled = true;
- qual.onchange = null;
-}
+    // Lazy-load preview (within 50px)
+    const previewObserver = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting && !previewLoaded) {
+        previewLoaded = true;
+        preview.src = videoData.preview;
+        preview.autoplay = true;
+        previewObserver.unobserve(wrap);
+      }
+    }, { rootMargin: '50px' });
 
-const savedPos = localStorage.getItem("neo_pos_" + wrapIndex);
-if (savedPos) {
-player.currentTime = parseFloat(savedPos);
-}
+    previewObserver.observe(wrap);
 
-// ══════════════════════════════════════════════════
-// ???? ЗАПУСК ВИДЕО
-// ══════════════════════════════════════════════════
-function startVideo() {
-bigPlay.style.display = "none";
-preview.style.display = "none";
-loader.style.display = "flex";
-clearTimeout(pauseTimeout);
+    // 5. Base UI state
+    preview.style.display = 'block';
+    bigPlay.style.display = 'flex';
+    player.style.display = 'none';
+    controls.style.display = 'none';
+    disableQuality();
 
-if (qual) {
- qual.disabled = true;
-}
+    const savedPos = localStorage.getItem('neo_pos_' + wrapIndex);
+    if (savedPos) {
+      player.currentTime = parseFloat(savedPos);
+    }
 
-const startPlayback = () => {
- loader.style.display = "none";
- player.style.display = "block";
- controls.style.display = "block";
- player.play().catch(()=>{});
-};
+    // 5. Big play click → start()
+    bigPlay.addEventListener('click', startVideo);
+    preview.addEventListener('click', startVideo);
+    wrap.addEventListener('click', (e) => {
+      if (e.target === wrap && isPreviewVisible()) {
+        startVideo();
+      }
+    });
 
-if (hlsInstance) {
- hlsInstance.destroy();
- hlsInstance = null;
-}
+    // 6 & 7. Start video depending on native/Hls.js
+    function startVideo() {
+      bigPlay.style.display = 'none';
+      preview.style.display = 'none';
+      loader.style.display = 'flex';
+      clearTimeout(pauseTimeout);
+      disableQuality();
 
-player.removeAttribute('src');
+      // Cleanup previous instance safely (fix: guard hls)
+      if (hlsInstance) {
+        hlsInstance.destroy();
+        hlsInstance = null;
+        manifestReady = false;
+      }
 
-if (window.Hls && Hls.isSupported()) {
- hlsInstance = new Hls();
- hlsInstance.loadSource(videoData.hls);
- hlsInstance.attachMedia(player);
- hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => {
-  startPlayback();
-   if (qual) {
-    qual.disabled = false;
-   }
- });
- } else if (player.canPlayType('application/vnd.apple.mpegurl')) {
-  if (qual) {
-  qual.disabled = true;
+      player.removeAttribute('src');
+
+      if (isNativeHls) {
+        // 6. If native HLS → assign src → wait for canplay → play
+        player.src = videoData.hls;
+        player.addEventListener('canplay', onNativeCanPlay, { once: true });
+        player.load();
+      } else if (window.Hls && Hls.isSupported()) {
+        // 7. If Hls.js → loadSource → attachMedia → wait for MANIFEST_PARSED
+        hlsInstance = new Hls();
+        hlsInstance.loadSource(videoData.hls);
+        hlsInstance.attachMedia(player);
+
+        // fix: handlers only after attachMedia
+        hlsInstance.on(Hls.Events.MANIFEST_PARSED, onManifestParsed);
+        hlsInstance.on(Hls.Events.ERROR, onHlsError);
+      } else {
+        loader.style.display = 'none';
+        bigPlay.style.display = 'flex';
+        preview.style.display = 'block';
+      }
+    }
+
+    function onNativeCanPlay() {
+      showControlsAndPlay();
+    }
+
+    function onManifestParsed() {
+      manifestReady = true; // fix: wait before quality switching
+      enableQuality();
+      showControlsAndPlay();
+    }
+
+    function onHlsError(event, data) {
+      if (!data || data.fatal !== true) return;
+      switch (data.type) {
+        case Hls.ErrorTypes.NETWORK_ERROR:
+          hlsInstance && hlsInstance.startLoad();
+          break;
+        case Hls.ErrorTypes.MEDIA_ERROR:
+          hlsInstance && hlsInstance.recoverMediaError();
+          break;
+        default:
+          if (hlsInstance) {
+            hlsInstance.destroy();
+            hlsInstance = null;
+          }
+          break;
+      }
+    }
+
+    function showControlsAndPlay() {
+      loader.style.display = 'none';
+      player.style.display = 'block';
+      controls.style.display = 'block';
+      player.play().catch(() => {});
+    }
+
+    function isPreviewVisible() {
+      return preview.style.display === 'block' && bigPlay.style.display === 'flex';
+    }
+
+    function disableQuality() {
+      if (qual) {
+        qual.disabled = true;
+        qual.onchange = null;
+      }
+    }
+
+    function enableQuality() {
+      if (!qual || !hlsInstance || !manifestReady) return;
+      qual.disabled = false;
+      qual.onchange = handleQualityChange;
+    }
+
+    // 9. Switching quality
+    function handleQualityChange() {
+      if (!hlsInstance || !manifestReady) return; // fix: guard
+
+      const target = qual.value;
+      if (target === 'auto') {
+        hlsInstance.currentLevel = -1;
+        return;
+      }
+
+      const targetHeight = parseInt(target, 10);
+      const levelIndex = hlsInstance.levels.findIndex((level) => level.height === targetHeight);
+      if (levelIndex === -1) return;
+
+      // fix: keep playing state & current time
+      const wasPaused = player.paused;
+      const savedTime = player.currentTime;
+
+      hlsInstance.currentLevel = levelIndex;
+      hlsInstance.loadLevel = levelIndex;
+
+      const seekBack = () => {
+        player.currentTime = savedTime;
+        if (!wasPaused) {
+          player.play().catch(() => {});
+        }
+        hlsInstance && hlsInstance.off(Hls.Events.LEVEL_SWITCHED, seekBack);
+      };
+
+      hlsInstance.on(Hls.Events.LEVEL_SWITCHED, seekBack);
+    }
+
+    // 8. Controls show + remaining behaviors
+    player.addEventListener('timeupdate', () => {
+      localStorage.setItem('neo_pos_' + wrapIndex, player.currentTime);
+      if (player.duration && !isDragging) {
+        fill.style.width = (player.currentTime / player.duration * 100) + '%';
+      }
+    });
+
+    // 10. Errors, fallbacks, safety guards already applied above
+
+    // Pause -> preview after 10 sec
+    player.addEventListener('pause', () => {
+      if (isDragging) return;
+      clearTimeout(pauseTimeout);
+      pauseTimeout = setTimeout(() => {
+        bigPlay.style.display = 'flex';
+        preview.style.display = 'block';
+        player.style.display = 'none';
+        controls.style.display = 'none';
+        setPlayIcon(true);
+      }, 10000);
+    });
+
+    player.addEventListener('play', () => {
+      clearTimeout(pauseTimeout);
+    });
+
+    // SVG icons
+    function setPlayIcon(isPlay) {
+      if (!playIcon) return;
+      playIcon.innerHTML = isPlay
+        ? '<svg viewBox="0 0 32 32" width="20" height="20" fill="white" xmlns="http://www.w3.org/2000/svg"><polygon points="10,6 26,16 10,26"></polygon></svg>'
+        : '<svg viewBox="0 0 32 32" width="18" height="20" fill="white" xmlns="http://www.w3.org/2000/svg"><rect x="8" y="7" width="5" height="18" rx="2"/><rect x="19" y="7" width="5" height="18" rx="2"/></svg>';
+    }
+
+    function setFullscreenIcon(isFullscreen) {
+      if (!fullscreenIcon) return;
+      fullscreenIcon.innerHTML = isFullscreen
+        ? '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="8 4 8 8 4 8"/><polyline points="16 4 16 8 20 8"/><polyline points="16 20 16 16 20 16"/><polyline points="8 20 8 16 4 16"/></svg>'
+        : '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 8 4 4 8 4"/><polyline points="16 4 20 4 20 8"/><polyline points="20 16 20 20 16 20"/><polyline points="8 20 4 20 4 16"/></svg>';
+    }
+
+    // ▶ PLAY/PAUSE
+    function togglePlay() {
+      if (player.paused) {
+        player.play();
+      } else {
+        player.pause();
+      }
+    }
+
+    btnPlay && (btnPlay.onclick = togglePlay);
+    player.onclick = togglePlay;
+    player.addEventListener('touchend', (e) => {
+      e.preventDefault();
+      togglePlay();
+    });
+    player.onplay = () => setPlayIcon(false);
+    player.onpause = () => setPlayIcon(true);
+
+    // Volume
+    if (vol) {
+      vol.oninput = () => player.volume = vol.value;
+    }
+
+    // Speed
+    if (speed) {
+      speed.onchange = () => player.playbackRate = parseFloat(speed.value);
+    }
+
+    // ⛶ FULLSCREEN
+    if (btnFull) {
+      btnFull.onclick = () => {
+        const isFullscreen = document.fullscreenElement ||
+          document.webkitFullscreenElement ||
+          document.mozFullScreenElement ||
+          document.msFullscreenElement;
+        if (!isFullscreen) {
+          setFullscreenIcon(true);
+          if (player.webkitEnterFullscreen) {
+            player.webkitEnterFullscreen();
+          }
+          else if (wrap.requestFullscreen) {
+            wrap.requestFullscreen().catch(() => {});
+          }
+          else if (wrap.webkitRequestFullscreen) {
+            wrap.webkitRequestFullscreen();
+          }
+          else if (wrap.mozRequestFullScreen) {
+            wrap.mozRequestFullScreen();
+          }
+          else if (wrap.msRequestFullscreen) {
+            wrap.msRequestFullscreen();
+          }
+        } else {
+          setFullscreenIcon(false);
+          if (document.exitFullscreen) {
+            document.exitFullscreen();
+          } else if (document.webkitExitFullscreen) {
+            document.webkitExitFullscreen();
+          } else if (document.mozCancelFullScreen) {
+            document.mozCancelFullScreen();
+          } else if (document.msExitFullscreen) {
+            document.msExitFullscreen();
+          }
+        }
+      };
+    }
+
+    // ???? PICTURE-IN-PICTURE
+    if (btnPip) {
+      btnPip.onclick = async () => {
+        try {
+          if (document.pictureInPictureElement) {
+            await document.exitPictureInPicture();
+          } else {
+            await player.requestPictureInPicture();
+          }
+        } catch (err) {
+          console.log('PiP error:', err);
+        }
+      };
+
+      player.addEventListener('enterpictureinpicture', () => {
+        btnPip.style.opacity = '0.8';
+        btnPip.style.background = 'rgba(100, 200, 255, 0.3)';
+      });
+
+      player.addEventListener('leavepictureinpicture', () => {
+        btnPip.style.opacity = '1';
+        btnPip.style.background = '';
+      });
+    }
+
+    // Disable right click
+    player.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      return false;
+    });
+
+    preview.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      return false;
+    });
+
+    // Progress bar
+    function updateSeekBar(e) {
+      const rect = bar.getBoundingClientRect();
+      const clientX = e.clientX || (e.touches ? e.touches[0].clientX : 0);
+      const x = clientX - rect.left;
+      const percent = Math.max(0, Math.min(1, x / rect.width));
+      if (player.duration) {
+        player.currentTime = percent * player.duration;
+        fill.style.width = (percent * 100) + '%';
+      }
+    }
+
+    bar.addEventListener('click', updateSeekBar);
+
+    bar.addEventListener('mousedown', (e) => {
+      isDragging = true;
+      bar.classList.add('neo-active');
+      clearTimeout(pauseTimeout);
+      player.pause();
+      updateSeekBar(e);
+    });
+
+    document.addEventListener('mousemove', (e) => {
+      if (isDragging) updateSeekBar(e);
+    });
+
+    document.addEventListener('mouseup', () => {
+      if (isDragging) {
+        isDragging = false;
+        bar.classList.remove('neo-active');
+        player.play();
+      }
+    });
+
+    bar.addEventListener('touchstart', (e) => {
+      isDragging = true;
+      bar.classList.add('neo-active');
+      clearTimeout(pauseTimeout);
+      player.pause();
+      updateSeekBar(e);
+    });
+
+    document.addEventListener('touchmove', (e) => {
+      if (isDragging) updateSeekBar(e);
+    });
+
+    document.addEventListener('touchend', () => {
+      if (isDragging) {
+        isDragging = false;
+        bar.classList.remove('neo-active');
+        player.play();
+      }
+    });
+
+    // Controls visibility
+    let controlsTimeout;
+    function showControls() {
+      controls.style.opacity = '1';
+      clearTimeout(controlsTimeout);
+      controlsTimeout = setTimeout(() => {
+        if (!player.paused) controls.style.opacity = '0';
+      }, 3000);
+    }
+    wrap.addEventListener('touchstart', showControls);
+    wrap.addEventListener('mousemove', showControls);
   }
- player.src = videoData.hls;
- player.addEventListener('loadedmetadata', () => {
-  startPlayback();
-  }, { once: true });
- player.load();
- } else {
- loader.style.display = "none";
- bigPlay.style.display = "flex";
- preview.style.display = "block";
- }
-}
 
- if (qual) {
- qual.onchange = function() {
-  if (!hlsInstance) return;
-
-  const value = qual.value;
-
-  if (value === "auto") {
-  hlsInstance.currentLevel = -1;
-  return;
+  function canPlayNativeHls() {
+    const video = document.createElement('video');
+    return video.canPlayType('application/vnd.apple.mpegurl');
   }
-
-  const map = {
-  "360": 0,
-  "480": 1,
-  "720": 2,
-  "1080": 3
-  };
-
-  const level = map[value];
-  if (level !== undefined) {
-  hlsInstance.currentLevel = level;
-  hlsInstance.loadLevel = level;
-  }
- };
- }
-
-bigPlay.onclick = (e) => {
-e.stopPropagation();
-startVideo();
-};
-
-preview.onclick = (e) => {
-e.stopPropagation();
-startVideo();
-};
-
-wrap.addEventListener('click', (e) => {
-if (preview.style.display === "block" && bigPlay.style.display === "flex") {
-startVideo();
-}
-});
-
-// ══════════════════════════════════════════════════
-// ???? СОХРАНЕНИЕ ПОЗИЦИИ
-// ══════════════════════════════════════════════════
-player.addEventListener("timeupdate", ()=>{
-localStorage.setItem("neo_pos_" + wrapIndex, player.currentTime);
-if(player.duration && !isDragging) {
-fill.style.width = (player.currentTime / player.duration * 100) + "%";
-}
-});
-
-// ══════════════════════════════════════════════════
-// ⏸ ПАУЗА → ПРЕВЬЮ ЧЕРЕЗ 10 СЕК
-// ══════════════════════════════════════════════════
-player.addEventListener("pause", ()=>{
-if (isDragging) return;
-clearTimeout(pauseTimeout);
-pauseTimeout = setTimeout(()=>{
-bigPlay.style.display = "flex";
-preview.style.display = "block";
-player.style.display = "none";
-controls.style.display = "none";
-setPlayIcon(true);
-}, 10000);
-});
-
-player.addEventListener("play", ()=>{
-clearTimeout(pauseTimeout);
-});
-
-// ══════════════════════════════════════════════════
-// ???? SVG ИКОНКИ
-// ══════════════════════════════════════════════════
-function setPlayIcon(isPlay) {
-if(!playIcon) return;
-playIcon.innerHTML = isPlay
-? '<svg viewBox="0 0 32 32" width="20" height="20" fill="white" xmlns="http://www.w3.org/2000/svg"><polygon points="10,6 26,16 10,26"></polygon></svg>'
-: '<svg viewBox="0 0 32 32" width="18" height="20" fill="white" xmlns="http://www.w3.org/2000/svg"><rect x="8" y="7" width="5" height="18" rx="2"/><rect x="19" y="7" width="5" height="18" rx="2"/></svg>';
-}
-
-function setFullscreenIcon(isFullscreen) {
-if(!fullscreenIcon) return;
-fullscreenIcon.innerHTML = isFullscreen
-? '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="8 4 8 8 4 8"/><polyline points="16 4 16 8 20 8"/><polyline points="16 20 16 16 20 16"/><polyline points="8 20 8 16 4 16"/></svg>'
-: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 8 4 4 8 4"/><polyline points="16 4 20 4 20 8"/><polyline points="20 16 20 20 16 20"/><polyline points="8 20 4 20 4 16"/></svg>';
-}
-
-// ══════════════════════════════════════════════════
-// ▶ PLAY/PAUSE
-// ══════════════════════════════════════════════════
-function togglePlay() {
-if(player.paused) {
-player.play();
-} else {
-player.pause();
-}
-}
-btnPlay.onclick = togglePlay;
-player.onclick = togglePlay;
-player.addEventListener('touchend', (e) => {
-e.preventDefault();
-togglePlay();
-});
-player.onplay = ()=> setPlayIcon(false);
-player.onpause = ()=> setPlayIcon(true);
-
-// ══════════════════════════════════════════════════
-// ???? ГРОМКОСТЬ
-// ══════════════════════════════════════════════════
-vol.oninput = ()=> player.volume = vol.value;
-
-// ══════════════════════════════════════════════════
-// ⚡ СКОРОСТЬ
-// ══════════════════════════════════════════════════
-speed.onchange = ()=> player.playbackRate = parseFloat(speed.value);
-
-// ══════════════════════════════════════════════════
-// ⛶ FULLSCREEN
-// ══════════════════════════════════════════════════
-btnFull.onclick = ()=>{
-const isFullscreen = document.fullscreenElement ||
-document.webkitFullscreenElement ||
-document.mozFullScreenElement ||
-document.msFullscreenElement;
-if (!isFullscreen) {
-setFullscreenIcon(true);
-if (player.webkitEnterFullscreen) {
-player.webkitEnterFullscreen();
-}
-else if (wrap.requestFullscreen) {
-wrap.requestFullscreen().catch(err => console.log(err));
-}
-else if (wrap.webkitRequestFullscreen) {
-wrap.webkitRequestFullscreen();
-}
-else if (wrap.mozRequestFullScreen) {
-wrap.mozRequestFullScreen();
-}
-else if (wrap.msRequestFullscreen) {
-wrap.msRequestFullscreen();
-}
-} else {
-setFullscreenIcon(false);
-if (document.exitFullscreen) {
-document.exitFullscreen();
-} else if (document.webkitExitFullscreen) {
-document.webkitExitFullscreen();
-} else if (document.mozCancelFullScreen) {
-document.mozCancelFullScreen();
-} else if (document.msExitFullscreen) {
-document.msExitFullscreen();
-}
-}
-};
-
-// ══════════════════════════════════════════════════
-// ???? PICTURE-IN-PICTURE
-// ══════════════════════════════════════════════════
-btnPip.onclick = async ()=>{
-try {
-if (document.pictureInPictureElement) {
-await document.exitPictureInPicture();
-} else {
-await player.requestPictureInPicture();
-}
-} catch(err) {
-console.log("PiP error:", err);
-}
-};
-
-player.addEventListener('enterpictureinpicture', ()=>{
-btnPip.style.opacity = "0.8";
-btnPip.style.background = "rgba(100, 200, 255, 0.3)";
-});
-
-player.addEventListener('leavepictureinpicture', ()=>{
-btnPip.style.opacity = "1";
-btnPip.style.background = "";
-});
-
-// ══════════════════════════════════════════════════
-// ???? ОТКЛЮЧАЕМ ПРАВУЮ КНОПКУ
-// ══════════════════════════════════════════════════
-player.addEventListener('contextmenu', (e) => {
-e.preventDefault();
-return false;
-});
-
-preview.addEventListener('contextmenu', (e) => {
-e.preventDefault();
-return false;
-});
-
-// ══════════════════════════════════════════════════
-// ???? ПРОГРЕСС-БАР
-// ══════════════════════════════════════════════════
-function updateSeekBar(e) {
-const rect = bar.getBoundingClientRect();
-const clientX = e.clientX || (e.touches ? e.touches[0].clientX : 0);
-const x = clientX - rect.left;
-const percent = Math.max(0, Math.min(1, x / rect.width));
-if(player.duration) {
-player.currentTime = percent * player.duration;
-fill.style.width = (percent * 100) + "%";
-}
-}
-
-bar.addEventListener('click', updateSeekBar);
-
-bar.addEventListener('mousedown', (e) => {
-isDragging = true;
-bar.classList.add('neo-active');
-clearTimeout(pauseTimeout);
-player.pause();
-updateSeekBar(e);
-});
-
-document.addEventListener('mousemove', (e) => {
-if(isDragging) updateSeekBar(e);
-});
-
-document.addEventListener('mouseup', () => {
-if(isDragging) {
-isDragging = false;
-bar.classList.remove('neo-active');
-player.play();
-}
-});
-
-bar.addEventListener('touchstart', (e) => {
-isDragging = true;
-bar.classList.add('neo-active');
-clearTimeout(pauseTimeout);
-player.pause();
-updateSeekBar(e);
-});
-
-document.addEventListener('touchmove', (e) => {
-if(isDragging) updateSeekBar(e);
-});
-
-document.addEventListener('touchend', () => {
-if(isDragging) {
-isDragging = false;
-bar.classList.remove('neo-active');
-player.play();
-}
-});
-
-// ══════════════════════════════════════════════════
-// ????️ ВИДИМОСТЬ CONTROLS
-// ══════════════════════════════════════════════════
-let controlsTimeout;
-function showControls() {
-controls.style.opacity = "1";
-clearTimeout(controlsTimeout);
-controlsTimeout = setTimeout(() => {
-if(!player.paused) controls.style.opacity = "0";
-}, 3000);
-}
-wrap.addEventListener('touchstart', showControls);
-wrap.addEventListener('mousemove', showControls);
-}
-});
+})();
