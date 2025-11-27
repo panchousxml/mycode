@@ -1,22 +1,21 @@
 (function() {
-  // 1. DOM Ready
-  document.addEventListener('DOMContentLoaded', function() {
-    const wrappers = document.querySelectorAll('.neo-player-wrapper');
-    if (!wrappers.length) return;
+  // Fix: defer init until ZeroBlock injects wrappers
+  window.onload = function() {
+    const waitForWrappers = () => {
+      const wrappers = document.querySelectorAll('.neo-player-wrapper');
+      if (wrappers.length) {
+        wrappers.forEach((wrap, index) => runNeoPlayer(wrap, index));
+      } else {
+        requestAnimationFrame(waitForWrappers);
+      }
+    };
 
-    wrappers.forEach((wrap, index) => initPlayer(wrap, index));
-  });
+    requestAnimationFrame(waitForWrappers);
+  };
 
-  /**
-   * Initialize a single player wrapper
-   * @param {HTMLElement} wrap
-   * @param {number} wrapIndex
-   */
-  function initPlayer(wrap, wrapIndex) {
-    // 2. Detect HLS native (will be used later)
+  function runNeoPlayer(wrap, wrapIndex) {
     const isNativeHls = canPlayNativeHls();
 
-    // 3. Init video element and UI refs
     const preview = wrap.querySelector('.neo-preview');
     const bigPlay = wrap.querySelector('.neo-big-play');
     const loader = wrap.querySelector('.neo-loader');
@@ -35,7 +34,6 @@
     const bar = wrap.querySelector('.neo-progress');
     const fill = wrap.querySelector('.neo-progress-filled');
 
-    // 4. Init preview and data
     const videosData = {
       0: {
         preview: 'https://static.tildacdn.com/vide6364-3939-4130-b261-383838353831/output_small.mp4',
@@ -55,7 +53,6 @@
     let hlsInstance = null;
     let manifestReady = false;
 
-    // Lazy-load preview (within 50px)
     const previewObserver = new IntersectionObserver((entries) => {
       if (entries[0].isIntersecting && !previewLoaded) {
         previewLoaded = true;
@@ -67,7 +64,6 @@
 
     previewObserver.observe(wrap);
 
-    // 5. Base UI state
     preview.style.display = 'block';
     bigPlay.style.display = 'flex';
     player.style.display = 'none';
@@ -79,7 +75,6 @@
       player.currentTime = parseFloat(savedPos);
     }
 
-    // 5. Big play click → start()
     bigPlay.addEventListener('click', startVideo);
     preview.addEventListener('click', startVideo);
     wrap.addEventListener('click', (e) => {
@@ -88,7 +83,6 @@
       }
     });
 
-    // 6 & 7. Start video depending on native/Hls.js
     function startVideo() {
       bigPlay.style.display = 'none';
       preview.style.display = 'none';
@@ -96,7 +90,6 @@
       clearTimeout(pauseTimeout);
       disableQuality();
 
-      // Cleanup previous instance safely (fix: guard hls)
       if (hlsInstance) {
         hlsInstance.destroy();
         hlsInstance = null;
@@ -106,17 +99,15 @@
       player.removeAttribute('src');
 
       if (isNativeHls) {
-        // 6. If native HLS → assign src → wait for canplay → play
         player.src = videoData.hls;
         player.addEventListener('canplay', onNativeCanPlay, { once: true });
         player.load();
       } else if (window.Hls && Hls.isSupported()) {
-        // 7. If Hls.js → loadSource → attachMedia → wait for MANIFEST_PARSED
         hlsInstance = new Hls();
+        // Fix: enforce correct order loadSource → attachMedia → MANIFEST_PARSED → play
         hlsInstance.loadSource(videoData.hls);
         hlsInstance.attachMedia(player);
 
-        // fix: handlers only after attachMedia
         hlsInstance.on(Hls.Events.MANIFEST_PARSED, onManifestParsed);
         hlsInstance.on(Hls.Events.ERROR, onHlsError);
       } else {
@@ -131,7 +122,7 @@
     }
 
     function onManifestParsed() {
-      manifestReady = true; // fix: wait before quality switching
+      manifestReady = true; // Fix: enable levels only after manifest ready
       enableQuality();
       showControlsAndPlay();
     }
@@ -178,9 +169,8 @@
       qual.onchange = handleQualityChange;
     }
 
-    // 9. Switching quality
     function handleQualityChange() {
-      if (!hlsInstance || !manifestReady) return; // fix: guard
+      if (!hlsInstance || !manifestReady) return;
 
       const target = qual.value;
       if (target === 'auto') {
@@ -192,7 +182,7 @@
       const levelIndex = hlsInstance.levels.findIndex((level) => level.height === targetHeight);
       if (levelIndex === -1) return;
 
-      // fix: keep playing state & current time
+      // Fix: change level without pausing, keep time
       const wasPaused = player.paused;
       const savedTime = player.currentTime;
 
@@ -210,7 +200,6 @@
       hlsInstance.on(Hls.Events.LEVEL_SWITCHED, seekBack);
     }
 
-    // 8. Controls show + remaining behaviors
     player.addEventListener('timeupdate', () => {
       localStorage.setItem('neo_pos_' + wrapIndex, player.currentTime);
       if (player.duration && !isDragging) {
@@ -218,9 +207,6 @@
       }
     });
 
-    // 10. Errors, fallbacks, safety guards already applied above
-
-    // Pause -> preview after 10 sec
     player.addEventListener('pause', () => {
       if (isDragging) return;
       clearTimeout(pauseTimeout);
@@ -237,7 +223,6 @@
       clearTimeout(pauseTimeout);
     });
 
-    // SVG icons
     function setPlayIcon(isPlay) {
       if (!playIcon) return;
       playIcon.innerHTML = isPlay
@@ -252,7 +237,6 @@
         : '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 8 4 4 8 4"/><polyline points="16 4 20 4 20 8"/><polyline points="20 16 20 20 16 20"/><polyline points="8 20 4 20 4 16"/></svg>';
     }
 
-    // ▶ PLAY/PAUSE
     function togglePlay() {
       if (player.paused) {
         player.play();
@@ -270,17 +254,14 @@
     player.onplay = () => setPlayIcon(false);
     player.onpause = () => setPlayIcon(true);
 
-    // Volume
     if (vol) {
       vol.oninput = () => player.volume = vol.value;
     }
 
-    // Speed
     if (speed) {
       speed.onchange = () => player.playbackRate = parseFloat(speed.value);
     }
 
-    // ⛶ FULLSCREEN
     if (btnFull) {
       btnFull.onclick = () => {
         const isFullscreen = document.fullscreenElement ||
@@ -319,7 +300,6 @@
       };
     }
 
-    // ???? PICTURE-IN-PICTURE
     if (btnPip) {
       btnPip.onclick = async () => {
         try {
@@ -344,7 +324,6 @@
       });
     }
 
-    // Disable right click
     player.addEventListener('contextmenu', (e) => {
       e.preventDefault();
       return false;
@@ -355,7 +334,6 @@
       return false;
     });
 
-    // Progress bar
     function updateSeekBar(e) {
       const rect = bar.getBoundingClientRect();
       const clientX = e.clientX || (e.touches ? e.touches[0].clientX : 0);
@@ -409,7 +387,6 @@
       }
     });
 
-    // Controls visibility
     let controlsTimeout;
     function showControls() {
       controls.style.opacity = '1';
@@ -424,6 +401,7 @@
 
   function canPlayNativeHls() {
     const video = document.createElement('video');
+    // Fix: avoid Hls.js on Safari when native HLS is supported
     return video.canPlayType('application/vnd.apple.mpegurl');
   }
 })();
