@@ -423,7 +423,6 @@ player.addEventListener('loadedmetadata', handleLoadedMetadata, { once: true });
 =======
 >>>>>>> parent of 5192c72 (Revert "Начальная версия")
 };
-
 // ══════════════════════════════════════════════════
 // ????️ ВИДИМОСТЬ CONTROLS
 // ══════════════════════════════════════════════════
