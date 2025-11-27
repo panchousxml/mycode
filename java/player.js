@@ -29,31 +29,20 @@ const fill = wrap.querySelector(".neo-progress-filled");
 const videosData = {
 0: { // neo-player-1
 preview: "https://static.tildacdn.com/vide6364-3939-4130-b261-383838353831/output_small.mp4",
-sources: {
-"360": "https://github.com/panchousxml/pskamelit-css/releases/download/vide/output_360p.mp4",
-"480": "https://github.com/panchousxml/pskamelit-css/releases/download/vide/output_480p.mp4",
-"720": "https://github.com/panchousxml/pskamelit-css/releases/download/vide/output_720p.mp4",
-"1080": "https://github.com/panchousxml/pskamelit-css/releases/download/vide/output_1080p.mp4"
-}
+hls: "https://cdn.jsdelivr.net/gh/panchousxml/video/3min/master.m3u8"
 },
 1: { // neo-player-2
 preview: "https://static.tildacdn.com/vide3564-3237-4635-a634-313662346231/output_compressed.mp4",
-sources: {
-"360": "https://github.com/panchousxml/pskamelit-css/releases/download/teg2/output2_360.mp4",
-"480": "https://github.com/panchousxml/pskamelit-css/releases/download/teg2/output2_480.mp4",
-"720": "https://github.com/panchousxml/pskamelit-css/releases/download/teg2/output2_720.mp4",
-"1080": "https://github.com/panchousxml/pskamelit-css/releases/download/teg2/output2_1080.mp4"
-}
+hls: "https://cdn.jsdelivr.net/gh/panchousxml/video/3min/master.m3u8"
 }
 };
 
 const videoData = videosData[wrapIndex];
 
-// ✅ ИСПРАВЛЕНИЕ: Дефолт качество зависит от мобайла
-let lastQuality = window.innerWidth < 600 ? "480" : "720";
 let isDragging = false;
 let pauseTimeout = null;
 let previewLoaded = false;
+let hlsInstance = null;
 
 // ══════════════════════════════════════════════════
 // ???? LAZY LOAD ПРЕВЬЮ (за 50px)
@@ -76,6 +65,10 @@ preview.style.display = "block";
 bigPlay.style.display = "flex";
 player.style.display = "none";
 controls.style.display = "none";
+if (qual) {
+ qual.disabled = true;
+ qual.onchange = null;
+}
 
 const savedPos = localStorage.getItem("neo_pos_" + wrapIndex);
 if (savedPos) {
@@ -83,45 +76,46 @@ player.currentTime = parseFloat(savedPos);
 }
 
 // ══════════════════════════════════════════════════
-// ✅ ИСПРАВЛЕНИЕ: SMART КАЧЕСТВО (детект сети + экрана)
-// ══════════════════════════════════════════════════
-function getSmartQuality() {
-// На мобайле (< 600px) — базовое 480 сразу
-if (window.innerWidth < 600) return "480";
-
-// На планшете (600-900px) — 480
-if (window.innerWidth < 900) return "480";
-
-// На ПК — проверяем сеть
-if (navigator.connection) {
-const type = navigator.connection.effectiveType;
-if (type === '4g') return "720";
-else if (type === '3g') return "480";
-else return "360";
-}
-
-// Дефолт для ПК
-return "720";
-}
-
-// ══════════════════════════════════════════════════
 // ???? ЗАПУСК ВИДЕО
 // ══════════════════════════════════════════════════
 function startVideo() {
-player.src = videoData.sources[lastQuality];
-player.load();
-
 bigPlay.style.display = "none";
 preview.style.display = "none";
 loader.style.display = "flex";
 clearTimeout(pauseTimeout);
 
-setTimeout(() => {
-loader.style.display = "none";
-player.style.display = "block";
-controls.style.display = "block";
-player.play().catch(()=>{});
-}, 600);
+const startPlayback = () => {
+ loader.style.display = "none";
+ player.style.display = "block";
+ controls.style.display = "block";
+ player.play().catch(()=>{});
+};
+
+if (hlsInstance) {
+ hlsInstance.destroy();
+ hlsInstance = null;
+}
+
+player.removeAttribute('src');
+
+if (window.Hls && Hls.isSupported()) {
+ hlsInstance = new Hls();
+ hlsInstance.loadSource(videoData.hls);
+ hlsInstance.attachMedia(player);
+ hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => {
+ startPlayback();
+ });
+} else if (player.canPlayType('application/vnd.apple.mpegurl')) {
+ player.src = videoData.hls;
+ player.addEventListener('loadedmetadata', () => {
+ startPlayback();
+ }, { once: true });
+ player.load();
+} else {
+ loader.style.display = "none";
+ bigPlay.style.display = "flex";
+ preview.style.display = "block";
+}
 }
 
 bigPlay.onclick = (e) => {
@@ -348,38 +342,6 @@ player.play();
 }
 });
 
-// ══════════════════════════════════════════════════
-// ???? КАЧЕСТВО ВИДЕО
-// ══════════════════════════════════════════════════
-qual.onchange = () => {
-const q = qual.value;
-lastQuality = q;
-const newSrc = q === "auto" ? getSmartQuality() : q;
-if (!videoData.sources[newSrc]) return;
-
-const pos = player.currentTime;
-const wasPlaying = !player.paused && !player.ended;
-
-player.removeAttribute('src');
-player.load();
-
-setTimeout(() => {
- player.src = videoData.sources[newSrc];
- player.load();
-
- const handleLoadedMetadata = () => {
- try {
- if (pos <= player.duration) player.currentTime = pos;
- } catch (err) {
- console.log('Seek error:', err);
- }
-
- if (wasPlaying) player.play().catch(()=>{});
- };
-
- player.addEventListener('loadedmetadata', handleLoadedMetadata, { once: true });
-}, 50);
-};
 // ══════════════════════════════════════════════════
 // ????️ ВИДИМОСТЬ CONTROLS
 // ══════════════════════════════════════════════════
