@@ -384,10 +384,16 @@ const wasPlaying = !player.paused && !player.ended;
 player.pause();
 player.src = videoData.sources[newSrc];
 player.load();
+
 player.onloadedmetadata = () => {
+try {
+if (Number.isFinite(pos) && pos <= player.duration) {
 player.currentTime = pos;
+}
+} catch(e) {}
+
 if (wasPlaying) {
-player.play().catch(() => {});
+player.play().catch(()=> setPlayIcon(true));
 }
 };
 };
