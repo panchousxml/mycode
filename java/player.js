@@ -378,50 +378,18 @@ lastQuality = q;
 const newSrc = q === "auto" ? getSmartQuality() : q;
 if (!videoData.sources[newSrc]) return;
 
-<<<<<<< HEAD
-const t = player.currentTime;
-=======
 const pos = player.currentTime;
->>>>>>> parent of 5192c72 (Revert "Начальная версия")
 const wasPlaying = !player.paused && !player.ended;
 
-// Для iOS/мобилы сначала полностью удалить src:
-player.removeAttribute('src');
-player.load();
-
-// Официально так НЕ работает для тегов <video> с несколькими <source>.
-// Значит нужно явно назначать .src:
+player.pause();
 player.src = videoData.sources[newSrc];
 player.load();
-
-<<<<<<< HEAD
-const handleLoadedMetadata = () => {
-try {
-if (Number.isFinite(t) && player.duration && t <= player.duration) {
-player.currentTime = t;
-}
-} catch (err) {
-console.warn("Не удалось восстановить позицию", err);
-}
-
-=======
 player.onloadedmetadata = () => {
 player.currentTime = pos;
->>>>>>> parent of 5192c72 (Revert "Начальная версия")
-// ВАЖНО: только после события loadedmetadata!
 if (wasPlaying) {
-// Автовоспроизведение на мобильных запрещено, оборачиваем в try/catch:
-player.play().catch(() => {
-// Если не получилось, можно показать кнопку Play ещё раз
-setPlayIcon(true);
-});
+player.play().catch(() => {});
 }
 };
-<<<<<<< HEAD
-
-player.addEventListener('loadedmetadata', handleLoadedMetadata, { once: true });
-=======
->>>>>>> parent of 5192c72 (Revert "Начальная версия")
 };
 // ══════════════════════════════════════════════════
 // ????️ ВИДИМОСТЬ CONTROLS
