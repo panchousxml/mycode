@@ -360,14 +360,25 @@ if (!videoData.sources[newSrc]) return;
 const pos = player.currentTime;
 const wasPlaying = !player.paused && !player.ended;
 
-player.pause();
-player.src = videoData.sources[newSrc];
+player.removeAttribute('src');
 player.load();
 
-player.onloadedmetadata = () => {
+setTimeout(() => {
+ player.src = videoData.sources[newSrc];
+ player.load();
+
+ const handleLoadedMetadata = () => {
+ try {
  if (pos <= player.duration) player.currentTime = pos;
- if (wasPlaying) player.play().catch(()=>setPlayIcon(true));
-};
+ } catch (err) {
+ console.log('Seek error:', err);
+ }
+
+ if (wasPlaying) player.play().catch(()=>{});
+ };
+
+ player.addEventListener('loadedmetadata', handleLoadedMetadata, { once: true });
+}, 50);
 };
 // ══════════════════════════════════════════════════
 // ????️ ВИДИМОСТЬ CONTROLS
