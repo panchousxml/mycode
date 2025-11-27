@@ -378,7 +378,7 @@ lastQuality = q;
 const newSrc = q === "auto" ? getSmartQuality() : q;
 if (!videoData.sources[newSrc]) return;
 
-const pos = player.currentTime;
+const t = player.currentTime;
 const wasPlaying = !player.paused && !player.ended;
 
 // Для iOS/мобилы сначала полностью удалить src:
@@ -390,8 +390,15 @@ player.load();
 player.src = videoData.sources[newSrc];
 player.load();
 
-player.onloadedmetadata = () => {
-player.currentTime = pos;
+const handleLoadedMetadata = () => {
+try {
+if (Number.isFinite(t) && player.duration && t <= player.duration) {
+player.currentTime = t;
+}
+} catch (err) {
+console.warn("Не удалось восстановить позицию", err);
+}
+
 // ВАЖНО: только после события loadedmetadata!
 if (wasPlaying) {
 // Автовоспроизведение на мобильных запрещено, оборачиваем в try/catch:
@@ -401,6 +408,8 @@ setPlayIcon(true);
 });
 }
 };
+
+player.addEventListener('loadedmetadata', handleLoadedMetadata, { once: true });
 };
 
 // ══════════════════════════════════════════════════
