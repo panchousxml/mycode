@@ -54,7 +54,6 @@ let lastQuality = window.innerWidth < 600 ? "480" : "720";
 let isDragging = false;
 let pauseTimeout = null;
 let previewLoaded = false;
-let sourcesLoaded = false;
 
 // ══════════════════════════════════════════════════
 // ???? LAZY LOAD ПРЕВЬЮ (за 50px)
@@ -106,31 +105,11 @@ return "720";
 }
 
 // ══════════════════════════════════════════════════
-// ✅ ИСПРАВЛЕНИЕ: ЗАГРУЗКА ИСТОЧНИКОВ (с fallback)
-// ══════════════════════════════════════════════════
-function loadSources() {
-if (sourcesLoaded) return;
-sourcesLoaded = true;
-
-const smartQuality = getSmartQuality();
-
-// Сначала грузим smartQuality, потом резервное
-const fallbackQuality = window.innerWidth < 600 ? "360" : "480";
-
-const qualitiesToLoad = new Set([smartQuality, fallbackQuality]);
-
-const sourceHTML = Array.from(qualitiesToLoad)
-.map(q => `<source src="${videoData.sources[q]}" data-quality="${q}" type="video/mp4">`)
-.join('');
-
-player.innerHTML = sourceHTML;
-}
-
-// ══════════════════════════════════════════════════
 // ???? ЗАПУСК ВИДЕО
 // ══════════════════════════════════════════════════
 function startVideo() {
-loadSources();
+player.src = videoData.sources[lastQuality];
+player.load();
 
 bigPlay.style.display = "none";
 preview.style.display = "none";
@@ -386,15 +365,8 @@ player.src = videoData.sources[newSrc];
 player.load();
 
 player.onloadedmetadata = () => {
-try {
-if (Number.isFinite(pos) && pos <= player.duration) {
-player.currentTime = pos;
-}
-} catch(e) {}
-
-if (wasPlaying) {
-player.play().catch(()=> setPlayIcon(true));
-}
+ if (pos <= player.duration) player.currentTime = pos;
+ if (wasPlaying) player.play().catch(()=>setPlayIcon(true));
 };
 };
 // ══════════════════════════════════════════════════
