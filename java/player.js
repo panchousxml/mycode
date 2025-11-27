@@ -84,6 +84,10 @@ preview.style.display = "none";
 loader.style.display = "flex";
 clearTimeout(pauseTimeout);
 
+if (qual) {
+ qual.disabled = true;
+}
+
 const startPlayback = () => {
  loader.style.display = "none";
  player.style.display = "block";
@@ -103,20 +107,52 @@ if (window.Hls && Hls.isSupported()) {
  hlsInstance.loadSource(videoData.hls);
  hlsInstance.attachMedia(player);
  hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => {
- startPlayback();
+  startPlayback();
+   if (qual) {
+    qual.disabled = false;
+   }
  });
-} else if (player.canPlayType('application/vnd.apple.mpegurl')) {
+ } else if (player.canPlayType('application/vnd.apple.mpegurl')) {
+  if (qual) {
+  qual.disabled = true;
+  }
  player.src = videoData.hls;
  player.addEventListener('loadedmetadata', () => {
- startPlayback();
- }, { once: true });
+  startPlayback();
+  }, { once: true });
  player.load();
-} else {
+ } else {
  loader.style.display = "none";
  bigPlay.style.display = "flex";
  preview.style.display = "block";
+ }
 }
-}
+
+ if (qual) {
+ qual.onchange = function() {
+  if (!hlsInstance) return;
+
+  const value = qual.value;
+
+  if (value === "auto") {
+  hlsInstance.currentLevel = -1;
+  return;
+  }
+
+  const map = {
+  "360": 0,
+  "480": 1,
+  "720": 2,
+  "1080": 3
+  };
+
+  const level = map[value];
+  if (level !== undefined) {
+  hlsInstance.currentLevel = level;
+  hlsInstance.loadLevel = level;
+  }
+ };
+ }
 
 bigPlay.onclick = (e) => {
 e.stopPropagation();
