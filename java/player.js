@@ -503,6 +503,5 @@ function runNeoPlayer(wrap, wrapIndex) {
 }
 
 function canPlayNativeHls() {
-    const video = document.createElement('video');
-    return video.canPlayType('application/vnd.apple.mpegurl');
+    return false;  // Всегда используем hls.js
 }
