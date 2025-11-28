@@ -34,6 +34,9 @@ function initNeoPlayer(wrappers) {
 }
 
 function runNeoPlayer(wrap, wrapIndex) {
+    let hlsInstance = null;
+    let manifestReady = false;
+
     const isNativeHls = canPlayNativeHls();
     const preview = wrap.querySelector('.neo-preview');
     const bigPlay = wrap.querySelector('.neo-big-play');
@@ -66,8 +69,6 @@ function runNeoPlayer(wrap, wrapIndex) {
     let isDragging = false;
     let pauseTimeout = null;
     let previewLoaded = false;
-    let hlsInstance = null;
-    let manifestReady = false;
 
     const previewObserver = new IntersectionObserver((entries) => {
         if (entries[0].isIntersecting && !previewLoaded) {
@@ -231,44 +232,47 @@ function runNeoPlayer(wrap, wrapIndex) {
 
     function enableQuality() {
         if (!qual || !hlsInstance || !manifestReady) return;
-        
+
         qual.disabled = false;
-        
-        // ✅ FIX: Заполняем селект доступными качествами
-        qual.innerHTML = '<option value="auto">Auto</option>';
-        hlsInstance.levels.forEach((level, idx) => {
+        qual.innerHTML = '';
+
+        const autoOption = document.createElement('option');
+        autoOption.value = 'auto';
+        autoOption.textContent = 'Auto';
+        qual.appendChild(autoOption);
+
+        hlsInstance.levels.forEach((level) => {
             const option = document.createElement('option');
             option.value = level.height;
-            option.text = `${level.height}p`;
+            option.textContent = `${level.height}p`;
             qual.appendChild(option);
         });
-        
+
         qual.onchange = handleQualityChange;
     }
 
     function handleQualityChange() {
-        console.log('🔄 handleQualityChange called!');  // ← Добавь эту строку
         if (!hlsInstance || !manifestReady) return;
-        const target = qual.value;
 
-        if (target === 'auto') {
-            hlsInstance.currentLevel = -1;
+        const value = qual.value;
+
+        if (value === "auto") {
+            hlsInstance.currentLevel = -1; // авто режим
             return;
         }
 
-        const targetHeight = parseInt(target, 10);
-        const levelIndex = hlsInstance.levels.findIndex((level) => level.height === targetHeight);
+        const height = parseInt(value, 10);
+        const levelIndex = hlsInstance.levels.findIndex(
+            level => level.height === height
+        );
+
         if (levelIndex === -1) return;
 
         const wasPaused = player.paused;
-        const savedTime = player.currentTime;
-
-        // ✅ FIX: Правильно переключаем качество
         hlsInstance.currentLevel = levelIndex;
-        // Удаляем loadLevel - это вызывает баги
 
         if (!wasPaused) {
-            player.play().catch(() => {});
+            setTimeout(() => player.play().catch(() => {}), 50);
         }
     }
 
