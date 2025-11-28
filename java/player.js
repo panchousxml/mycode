@@ -247,6 +247,7 @@ function runNeoPlayer(wrap, wrapIndex) {
     }
 
     function handleQualityChange() {
+        console.log('🔄 handleQualityChange called!');  // ← Добавь эту строку
         if (!hlsInstance || !manifestReady) return;
         const target = qual.value;
 
