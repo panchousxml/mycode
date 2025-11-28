@@ -36,12 +36,14 @@ function initNeoPlayer(wrappers) {
 function runNeoPlayer(wrap, wrapIndex) {
     let hlsInstance = null;
     let manifestReady = false;
+    let qual;
+    let player;
 
     const isNativeHls = canPlayNativeHls();
     const preview = wrap.querySelector('.neo-preview');
     const bigPlay = wrap.querySelector('.neo-big-play');
     const loader = wrap.querySelector('.neo-loader');
-    const player = wrap.querySelector('.neo-video');
+    player = wrap.querySelector('.neo-video');
     const controls = wrap.querySelector('.neo-controls');
     const btnPlay = wrap.querySelector('.neo-play');
     const playIcon = wrap.querySelector('.neo-play-icon');
@@ -49,7 +51,7 @@ function runNeoPlayer(wrap, wrapIndex) {
     const fullscreenIcon = wrap.querySelector('.neo-fullscreen-icon');
     const btnPip = wrap.querySelector('.neo-pip');
     const vol = wrap.querySelector('.neo-volume');
-    const qual = wrap.querySelector('.neo-quality');
+    qual = wrap.querySelector('.neo-quality');
     const speed = wrap.querySelector('.neo-speed');
     const bar = wrap.querySelector('.neo-progress');
     const fill = wrap.querySelector('.neo-progress-filled');
@@ -155,10 +157,8 @@ function runNeoPlayer(wrap, wrapIndex) {
     }
 
     function onManifestParsed() {
-        console.log('✅ MANIFEST PARSED', {
-            levels: hlsInstance.levels.length,
-            qualitites: hlsInstance.levels.map(l => l.height + 'p')
-        });
+        console.log('📡 MANIFEST_PARSED fired');
+        console.log('📦 Levels:', hlsInstance.levels);
         manifestReady = true;
         enableQuality();
         showControlsAndPlay();
@@ -234,30 +234,34 @@ function runNeoPlayer(wrap, wrapIndex) {
         if (!qual || !hlsInstance || !manifestReady) return;
 
         qual.disabled = false;
-        qual.innerHTML = '';
 
-        const autoOption = document.createElement('option');
-        autoOption.value = 'auto';
-        autoOption.textContent = 'Auto';
-        qual.appendChild(autoOption);
+        qual.innerHTML = '<option value="auto">Auto</option>';
 
-        hlsInstance.levels.forEach((level) => {
-            const option = document.createElement('option');
+        hlsInstance.levels.forEach(level => {
+            if (!level.height) return;
+            const option = document.createElement("option");
             option.value = level.height;
-            option.textContent = `${level.height}p`;
+            option.text = `${level.height}p`;
             qual.appendChild(option);
         });
 
-        qual.onchange = handleQualityChange;
+        qual.onchange = () => handleQualityChange();
     }
 
     function handleQualityChange() {
-        if (!hlsInstance || !manifestReady) return;
+        console.log("🔄 handleQualityChange called!");
+
+        if (!hlsInstance || !manifestReady) {
+            console.log("❌ hlsInstance or manifestReady not available", { hlsInstance, manifestReady });
+            return;
+        }
 
         const value = qual.value;
+        console.log("🎯 Selected:", value);
 
         if (value === "auto") {
-            hlsInstance.currentLevel = -1; // авто режим
+            hlsInstance.currentLevel = -1;
+            console.log("🌈 Auto quality enabled");
             return;
         }
 
@@ -266,14 +270,22 @@ function runNeoPlayer(wrap, wrapIndex) {
             level => level.height === height
         );
 
-        if (levelIndex === -1) return;
+        if (levelIndex === -1) {
+            console.log("❌ Level not found for height:", height);
+            return;
+        }
+
+        console.log("📌 Switching to:", levelIndex, height);
 
         const wasPaused = player.paused;
+        const t = player.currentTime;
+
         hlsInstance.currentLevel = levelIndex;
 
-        if (!wasPaused) {
-            setTimeout(() => player.play().catch(() => {}), 50);
-        }
+        setTimeout(() => {
+            player.currentTime = t;
+            if (!wasPaused) player.play().catch(() => {});
+        }, 100);
     }
 
     // Event listeners для воспроизведения
