@@ -119,11 +119,14 @@ function runNeoPlayer(wrap, wrapIndex) {
         player.removeAttribute('src');
 
         if (isNativeHls) {
+            console.log('📱 Using native HLS');
             player.src = videoData.hls;
             player.addEventListener('canplay', onNativeCanPlay, { once: true });
             player.load();
         } else if (window.Hls && Hls.isSupported()) {
             console.log('🎬 Starting HLS playback from:', videoData.hls);
+            console.log('✅ window.Hls exists:', !!window.Hls);
+            console.log('✅ Hls.isSupported():', Hls.isSupported());
             hlsInstance = new Hls({
                 debug: false,
                 enableWorker: true,
@@ -147,6 +150,9 @@ function runNeoPlayer(wrap, wrapIndex) {
             hlsInstance.attachMedia(player);
             console.log('✅ HLS attached to player, waiting for manifest...');
         } else {
+            console.log('❌ HLS not supported!');
+            console.log('window.Hls:', window.Hls);
+            console.log('isNativeHls:', isNativeHls);
             loader.style.display = 'none';
             bigPlay.style.display = 'flex';
             preview.style.display = 'block';
