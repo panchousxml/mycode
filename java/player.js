@@ -103,6 +103,7 @@ function runNeoPlayer(wrap, wrapIndex) {
     });
 
     function startVideo() {
+        console.log('🔴 startVideo CALLED');
         bigPlay.style.display = 'none';
         preview.style.display = 'none';
         loader.style.display = 'flex';
