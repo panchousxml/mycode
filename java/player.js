@@ -1,3 +1,4 @@
+console.log("PLAYER VERSION: 6cd2648502327f6a113513b07269d18c28922cf7", Date.now());
 document.addEventListener('DOMContentLoaded', () => {
   setTimeout(() => {
     function waitForWrappers() {
