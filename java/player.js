@@ -119,18 +119,29 @@ function runNeoPlayer(wrap, wrapIndex) {
             player.addEventListener('canplay', onNativeCanPlay, { once: true });
             player.load();
         } else if (window.Hls && Hls.isSupported()) {
+            console.log('🎬 Starting HLS playback from:', videoData.hls);
             hlsInstance = new Hls({
                 debug: false,
                 enableWorker: true,
-                lowLatencyMode: false
+                lowLatencyMode: false,
+                maxLoadingDelay: 4,
+                maxBufferLength: 30,
+                defaultAudioCodec: undefined
             });
+            
+            hlsInstance.on(Hls.Events.MANIFEST_PARSING_STARTED, () => {
+                console.log('📡 Manifest parsing started...');
+            });
+            
+            hlsInstance.on(Hls.Events.MANIFEST_PARSED, onManifestParsed);
+            hlsInstance.on(Hls.Events.ERROR, onHlsError);
+            
             hlsInstance.loadSource(videoData.hls);
             // ✅ FIX: Сначала показываем плеер, потом привязываем HLS
             player.style.display = "block";
             controls.style.display = "block";
             hlsInstance.attachMedia(player);
-            hlsInstance.on(Hls.Events.MANIFEST_PARSED, onManifestParsed);
-            hlsInstance.on(Hls.Events.ERROR, onHlsError);
+            console.log('✅ HLS attached to player, waiting for manifest...');
         } else {
             loader.style.display = 'none';
             bigPlay.style.display = 'flex';
@@ -143,21 +154,29 @@ function runNeoPlayer(wrap, wrapIndex) {
     }
 
     function onManifestParsed() {
+        console.log('✅ MANIFEST PARSED', {
+            levels: hlsInstance.levels.length,
+            qualitites: hlsInstance.levels.map(l => l.height + 'p')
+        });
         manifestReady = true;
         enableQuality();
         showControlsAndPlay();
     }
 
     function onHlsError(event, data) {
+        console.error('❌ HLS ERROR:', data?.type, data?.details, data);
         if (!data || data.fatal !== true) return;
         switch (data.type) {
             case Hls.ErrorTypes.NETWORK_ERROR:
+                console.warn('🔄 NETWORK_ERROR: Retrying...');
                 hlsInstance && hlsInstance.startLoad();
                 break;
             case Hls.ErrorTypes.MEDIA_ERROR:
+                console.warn('🔄 MEDIA_ERROR: Recovering...');
                 hlsInstance && hlsInstance.recoverMediaError();
                 break;
             default:
+                console.error('💥 FATAL ERROR: Destroying HLS');
                 if (hlsInstance) {
                     hlsInstance.destroy();
                     hlsInstance = null;
@@ -171,14 +190,30 @@ function runNeoPlayer(wrap, wrapIndex) {
         player.style.display = 'block';
         controls.style.display = 'block';
         
+        console.log('🎯 showControlsAndPlay called', {
+            readyState: player.readyState,
+            duration: player.duration,
+            networkState: player.networkState
+        });
+        
         // ✅ FIX: Проверяем готовность перед проигрыванием
         if (player.readyState >= 2) {
-            player.play().catch(() => {
-                console.log('Autoplay blocked');
+            console.log('▶️ Playing immediately (readyState >= 2)');
+            player.play().catch((err) => {
+                console.error('❌ Autoplay blocked or failed:', err);
             });
         } else {
+            console.log('⏳ Waiting for canplay event...');
             player.addEventListener('canplay', () => {
-                player.play().catch(() => {});
+                console.log('▶️ canplay event fired, playing now');
+                player.play().catch((err) => {
+                    console.error('❌ Play failed:', err);
+                });
+            }, { once: true });
+            
+            player.addEventListener('error', () => {
+                console.error('❌ Player error event:', player.error);
+                loader.style.display = 'none';
             }, { once: true });
         }
     }
