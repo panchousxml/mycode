@@ -54,11 +54,11 @@ function runNeoPlayer(wrap, wrapIndex) {
     const videosData = {
         0: {
             preview: 'https://static.tildacdn.com/vide6364-3939-4130-b261-383838353831/output_small.mp4',
-            hls: 'https://cdn.jsdelivr.net/gh/panchousxml/video/3min/master.m3u8'
+            hls: 'https://cb61716.tmweb.ru/3min/master.m3u8'
         },
         1: {
             preview: 'https://static.tildacdn.com/vide3564-3237-4635-a634-313662346231/output_compressed.mp4',
-            hls: 'https://cdn.jsdelivr.net/gh/panchousxml/video/3min/master.m3u8'
+            hls: 'https://cb61716.tmweb.ru/3min/master.m3u8'
         }
     };
 
