@@ -1,6 +1,6 @@
-console.log("PLAYER VERSION: 6cd2648502327f6a113513b07269d18c28922cf7", Date.now());
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener("DOMContentLoaded", () => {
   setTimeout(() => {
+
     function waitForWrappers() {
       const wrappers = document.querySelectorAll('.neo-player-wrapper');
       if (!wrappers.length) {
@@ -13,6 +13,7 @@ document.addEventListener('DOMContentLoaded', () => {
     waitForWrappers();
 
     function initNeoPlayer(wrappers) {
+      console.log("PLAYER VERSION: 6cd2648502327f6a113513b07269d18c28922cf7", Date.now());
       wrappers.forEach((wrap, index) => runNeoPlayer(wrap, index));
 
       function runNeoPlayer(wrap, wrapIndex) {
@@ -226,15 +227,21 @@ document.addEventListener('DOMContentLoaded', () => {
         function setPlayIcon(isPlay) {
           if (!playIcon) return;
           playIcon.innerHTML = isPlay
-            ? '<svg viewBox="0 0 32 32" width="20" height="20" fill="white" xmlns="http://www.w3.org/2000/svg"><polygon points="10,6 26,16 10,26"></polygon></svg>'
-            : '<svg viewBox="0 0 32 32" width="18" height="20" fill="white" xmlns="http://www.w3.org/2000/svg"><rect x="8" y="7" width="5" height="18" rx="2"/><rect x="19" y="7" width="5" height="18" rx="2"/></svg>';
+            ? '<svg viewBox="0 0 32 32" width="20" height="20" fill="white" xmlns="http://www.w3.org/2000/svg"><polygon points="
+10,6 26,16 10,26"></polygon></svg>'
+            : '<svg viewBox="0 0 32 32" width="18" height="20" fill="white" xmlns="http://www.w3.org/2000/svg"><rect x="8" y="7"
+ width="5" height="18" rx="2"/><rect x="19" y="7" width="5" height="18" rx="2"/></svg>';
         }
 
         function setFullscreenIcon(isFullscreen) {
           if (!fullscreenIcon) return;
           fullscreenIcon.innerHTML = isFullscreen
-            ? '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="8 4 8 8 4 8"/><polyline points="16 4 16 8 20 8"/><polyline points="16 20 16 16 20 16"/><polyline points="8 20 8 16 4 16"/></svg>'
-            : '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 8 4 4 8 4"/><polyline points="16 4 20 4 20 8"/><polyline points="20 16 20 20 16 20"/><polyline points="8 20 4 20 4 16"/></svg>';
+            ? '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="white" stroke-width="2" stroke-linecap="round
+" stroke-linejoin="round"><polyline points="8 4 8 8 4 8"/><polyline points="16 4 16 8 20 8"/><polyline points="16 20 16 16 20 16
+"/><polyline points="8 20 8 16 4 16"/></svg>'
+            : '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="white" stroke-width="2" stroke-linecap="round
+" stroke-linejoin="round"><polyline points="4 8 4 4 8 4"/><polyline points="16 4 20 4 20 8"/><polyline points="20 16 20 20 16 20
+"/><polyline points="8 20 4 20 4 16"/></svg>';
         }
 
         function togglePlay() {
@@ -404,5 +411,6 @@ document.addEventListener('DOMContentLoaded', () => {
         return video.canPlayType('application/vnd.apple.mpegurl');
       }
     }
+
   }, 300);
 });
