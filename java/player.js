@@ -162,11 +162,11 @@ function runNeoPlayer(wrap, wrapIndex) {
         if (!hlsInstance || !hlsInstance.levels.length) return 0;
 
         const levels = hlsInstance.levels;
-        const targetHeight = 720;
+        const targetHeight = 360;
 
         let idx = levels.findIndex(l => l.height === targetHeight);
         if (idx !== -1) {
-            console.log('✅ Found 720p at index', idx);
+            console.log('✅ Found 360p at index', idx);
             return idx;
         }
 
@@ -179,11 +179,11 @@ function runNeoPlayer(wrap, wrapIndex) {
         }
 
         if (idx !== -1) {
-            console.log(`⬇️ 720p not found, using fallback: ${levels[idx].height}p at index ${idx}`);
+            console.log(`⬇️ 360p not found, using fallback: ${levels[idx].height}p at index ${idx}`);
             return idx;
         }
 
-        console.log('⬆️ All levels above 720p, using lowest');
+        console.log('⬆️ All levels above 360p, using lowest');
         return levels.length - 1;
     }
 
@@ -220,6 +220,18 @@ function runNeoPlayer(wrap, wrapIndex) {
         const optimalLevel = findOptimalStartLevel();
         hlsInstance.startLevel = optimalLevel;
         console.log('🚀 Starting at level:', optimalLevel, 'height:', hlsInstance.levels[optimalLevel].height);
+
+        // Enable ABR but prevent auto-selection of 1080p
+        const maxHeight = 720;
+        hlsInstance.levels.forEach((level, idx) => {
+            if (level.height > maxHeight) {
+                level.bitrate = 0;
+                console.log(`🔒 Disabled auto-selection for ${level.height}p (index ${idx})`);
+            }
+        });
+
+        hlsInstance.currentLevel = -1;
+        console.log('🌈 Enabled Auto mode for smooth quality upgrade');
 
         manifestReady = true;
         enableQuality();
@@ -302,7 +314,8 @@ function runNeoPlayer(wrap, wrapIndex) {
             if (!level.height) return;
             const option = document.createElement("option");
             option.value = level.height;
-            option.text = `${level.height}p`;
+            const label = level.height === 1080 ? `${level.height}p (manual only)` : `${level.height}p`;
+            option.text = label;
             qual.appendChild(option);
         });
 
