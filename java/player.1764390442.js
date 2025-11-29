@@ -508,3 +508,5 @@ function canPlayNativeHls() {
 }
 
 console.log("PLAYER VERSION:", 1764390442);
+
+console.log("PLAYER BUILD:", "29.11.2025 05:25:45");
