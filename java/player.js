@@ -216,10 +216,22 @@ function runNeoPlayer(wrap, wrapIndex) {
     function onManifestParsed() {
         console.log('📡 MANIFEST_PARSED fired');
         console.log('📦 Levels:', hlsInstance.levels);
-        
+
         const optimalLevel = findOptimalStartLevel();
         hlsInstance.startLevel = optimalLevel;
         console.log('🚀 Starting at level:', optimalLevel, 'height:', hlsInstance.levels[optimalLevel].height);
+
+        // ← ПРАВИЛЬНО: ограничиваем максимальный уровень для ABR
+        // Найди индекс 720p и установи его как maxAutoLevel
+        const maxAutoLevelIndex = hlsInstance.levels.findIndex(l => l.height === 720);
+        if (maxAutoLevelIndex !== -1) {
+            hlsInstance.maxAutoLevel = maxAutoLevelIndex;
+            console.log(`📍 maxAutoLevel set to index ${maxAutoLevelIndex} (720p)`);
+        }
+
+        // Сбрасываем currentLevel на -1 (Auto режим) для плавного повышения качества
+        hlsInstance.currentLevel = -1;
+        console.log('🌈 Enabled Auto mode for smooth quality upgrade');
 
         manifestReady = true;
         enableQuality();
