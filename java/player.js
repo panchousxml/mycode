@@ -63,7 +63,7 @@ function runNeoPlayer(wrap, wrapIndex) {
         },
         1: {
             preview: 'https://static.tildacdn.com/vide3564-3237-4635-a634-313662346231/output_compressed.mp4',
-            hls: 'https://video.pskamelit.ru/3min/master.m3u8'
+            hls: 'https://video.pskamelit.ru/vertolet/master.m3u8'
         }
     };
 
