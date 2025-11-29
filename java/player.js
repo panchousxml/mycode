@@ -1,3 +1,4 @@
+console.log('PLAYER JS BUILD', '30-11-2025 0:18');
 document.addEventListener("DOMContentLoaded", () => {
     requestAnimationFrame(checkWrapper);
 });
@@ -29,6 +30,7 @@ function checkPlayerReady(wrappers) {
 }
 
 function initNeoPlayer(wrappers) {
+    console.log("PLAYER VERSION: FIXED", Date.now());
     wrappers.forEach((wrap, index) => runNeoPlayer(wrap, index));
 }
 
