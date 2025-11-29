@@ -282,10 +282,18 @@ function runNeoPlayer(wrap, wrapIndex) {
 
         hlsInstance.currentLevel = levelIndex;
 
-        setTimeout(() => {
+        const onFragChanged = () => {
+            console.log("📌 Fragment changed, restoring position:", t);
             player.currentTime = t;
-            if (!wasPaused) player.play().catch(() => {});
-        }, 100);
+            if (!wasPaused) {
+                player.play().catch(err => {
+                    console.error("❌ play() after quality change failed:", err);
+                });
+            }
+            hlsInstance.off(Hls.Events.FRAG_CHANGED, onFragChanged);
+        };
+
+        hlsInstance.on(Hls.Events.FRAG_CHANGED, onFragChanged);
     }
 
     // Event listeners для воспроизведения
