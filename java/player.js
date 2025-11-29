@@ -1,3 +1,4 @@
+console.log('PLAYER JS BUILD', '2025-11-29 07:05');
 document.addEventListener("DOMContentLoaded", () => {
     requestAnimationFrame(checkWrapper);
 });
