@@ -1,4 +1,5 @@
-console.log('PLAYER JS BUILD', '30-11-2025 0:18');
+# Генерирую апгрейженный JS с комментариями
+code = """console.log('PLAYER JS BUILD', '30-11-2025 1:52 - ADAPTIVE START LEVEL 720p');
 document.addEventListener("DOMContentLoaded", () => {
     requestAnimationFrame(checkWrapper);
 });
@@ -38,6 +39,7 @@ function runNeoPlayer(wrap, wrapIndex) {
     let manifestReady = false;
     let qual;
     let player;
+    let currentDisplayQuality = 'Auto'; // ← Хранит текущее отображаемое качество
 
     const isNativeHls = canPlayNativeHls();
     const preview = wrap.querySelector('.neo-preview');
@@ -133,7 +135,8 @@ function runNeoPlayer(wrap, wrapIndex) {
                 lowLatencyMode: false,
                 maxLoadingDelay: 4,
                 maxBufferLength: 30,
-                defaultAudioCodec: undefined
+                defaultAudioCodec: undefined,
+                startLevel: undefined  // ← Будет установлено в onManifestParsed
             });
             
             hlsInstance.on(Hls.Events.MANIFEST_PARSING_STARTED, () => {
@@ -142,6 +145,7 @@ function runNeoPlayer(wrap, wrapIndex) {
 
             hlsInstance.on(Hls.Events.MANIFEST_PARSED, onManifestParsed);
             hlsInstance.on(Hls.Events.ERROR, onHlsError);
+            hlsInstance.on(Hls.Events.LEVEL_SWITCHED, onLevelSwitched);  // ← Новый слушатель
 
             hlsInstance.loadSource(videoData.hls);
             hlsInstance.attachMedia(player);
@@ -156,11 +160,82 @@ function runNeoPlayer(wrap, wrapIndex) {
         }
     }
 
+    function findOptimalStartLevel() {
+        // ← НОВАЯ ФУНКЦИЯ: ищет 720p, если нет — берёт ближайший ниже
+        if (!hlsInstance || !hlsInstance.levels.length) return 0;
+
+        const levels = hlsInstance.levels;
+        const targetHeight = 720;
+
+        // Сначала ищем ровно 720p
+        let idx = levels.findIndex(l => l.height === targetHeight);
+        if (idx !== -1) {
+            console.log('✅ Found 720p at index', idx);
+            return idx;
+        }
+
+        // Если 720p нет, ищем ближайший ниже (600, 540, 480...)
+        idx = -1;
+        for (let i = levels.length - 1; i >= 0; i--) {
+            if (levels[i].height < targetHeight) {
+                idx = i;
+                break;
+            }
+        }
+
+        if (idx !== -1) {
+            console.log(\`⬇️ 720p not found, using fallback: \${levels[idx].height}p at index \${idx}\`);
+            return idx;
+        }
+
+        // Если всё выше 720p, берём самый низкий
+        console.log('⬆️ All levels above 720p, using lowest');
+        return levels.length - 1;
+    }
+
+    function updateQualityLabel() {
+        // ← НОВАЯ ФУНКЦИЯ: обновляет лейбл качества на кнопке
+        if (!qual || !hlsInstance) return;
+
+        const currentLevel = hlsInstance.currentLevel;
+        if (currentLevel === -1) {
+            // Auto режим
+            const nextLevel = hlsInstance.nextLevel;
+            const level = nextLevel !== -1 ? hlsInstance.levels[nextLevel] : hlsInstance.levels[0];
+            currentDisplayQuality = level ? \`\${level.height}p\` : 'Auto';
+            console.log('📊 Auto mode, displaying:', currentDisplayQuality);
+        } else {
+            // Фиксированный уровень
+            const level = hlsInstance.levels[currentLevel];
+            currentDisplayQuality = level ? \`\${level.height}p\` : 'Auto';
+            console.log('📊 Fixed level, displaying:', currentDisplayQuality);
+        }
+
+        // Обновляем первый option в селекте
+        const firstOption = qual.querySelector('option[value="auto"]');
+        if (firstOption) {
+            firstOption.text = \`Auto (\${currentDisplayQuality})\`;
+        }
+    }
+
+    function onLevelSwitched() {
+        // ← НОВЫЙ ОБРАБОТЧИК: вызывается при смене качества
+        console.log('🎯 LEVEL_SWITCHED, current level:', hlsInstance.currentLevel);
+        updateQualityLabel();
+    }
+
     function onManifestParsed() {
         console.log('📡 MANIFEST_PARSED fired');
         console.log('📦 Levels:', hlsInstance.levels);
+        
+        // ← НОВАЯ ЛОГИКА: устанавливаем стартовый уровень в 720p
+        const optimalLevel = findOptimalStartLevel();
+        hlsInstance.startLevel = optimalLevel;
+        console.log('🚀 Starting at level:', optimalLevel, 'height:', hlsInstance.levels[optimalLevel].height);
+
         manifestReady = true;
         enableQuality();
+        updateQualityLabel();  // ← Обновляем лейбл сразу после парса
         showControlsAndPlay();
     }
 
@@ -241,7 +316,7 @@ function runNeoPlayer(wrap, wrapIndex) {
             if (!level.height) return;
             const option = document.createElement("option");
             option.value = level.height;
-            option.text = `${level.height}p`;
+            option.text = \`\${level.height}p\`;
             qual.appendChild(option);
         });
 
@@ -262,6 +337,7 @@ function runNeoPlayer(wrap, wrapIndex) {
         if (value === "auto") {
             hlsInstance.currentLevel = -1;
             console.log("🌈 Auto quality enabled");
+            updateQualityLabel();  // ← Обновляем лейбл при переходе на Auto
             return;
         }
 
@@ -307,7 +383,6 @@ function runNeoPlayer(wrap, wrapIndex) {
     player.addEventListener('pause', () => {
         if (isDragging) return;
         clearTimeout(pauseTimeout);
-        // ✅ OPTIONAL: Если нужно скрывать превью, измени 30000 на 10000
         pauseTimeout = setTimeout(() => {
             if (player.paused) {
                 bigPlay.style.display = 'flex';
@@ -506,4 +581,7 @@ function runNeoPlayer(wrap, wrapIndex) {
 function canPlayNativeHls() {
     return false;  // Всегда используем hls.js
 }
-console.log("🔥🔥 NEW BUILD:", "29.11.2025 05:37:31");
+console.log("🚀 BUILD WITH ADAPTIVE START LEVEL 720p");
+"""
+
+print(code)
