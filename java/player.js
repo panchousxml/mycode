@@ -121,7 +121,7 @@ function runNeoPlayer(wrap, wrapIndex) {
         if (isNativeHls) {
             console.log('📱 Using native HLS');
             player.src = videoData.hls;
-            player.addEventListener('canplay', onNativeCanPlay, { once: true });
+            player.addEventListener('loadeddata', showControlsAndPlay, { once: true });
             player.load();
         } else if (window.Hls && Hls.isSupported()) {
             console.log('🎬 Starting HLS playback from:', videoData.hls);
@@ -139,14 +139,11 @@ function runNeoPlayer(wrap, wrapIndex) {
             hlsInstance.on(Hls.Events.MANIFEST_PARSING_STARTED, () => {
                 console.log('📡 Manifest parsing started...');
             });
-            
+
             hlsInstance.on(Hls.Events.MANIFEST_PARSED, onManifestParsed);
             hlsInstance.on(Hls.Events.ERROR, onHlsError);
-            
+
             hlsInstance.loadSource(videoData.hls);
-            // ✅ FIX: Сначала показываем плеер, потом привязываем HLS
-            player.style.display = "block";
-            controls.style.display = "block";
             hlsInstance.attachMedia(player);
             console.log('✅ HLS attached to player, waiting for manifest...');
         } else {
@@ -157,10 +154,6 @@ function runNeoPlayer(wrap, wrapIndex) {
             bigPlay.style.display = 'flex';
             preview.style.display = 'block';
         }
-    }
-
-    function onNativeCanPlay() {
-        showControlsAndPlay();
     }
 
     function onManifestParsed() {
@@ -197,31 +190,31 @@ function runNeoPlayer(wrap, wrapIndex) {
         loader.style.display = 'none';
         player.style.display = 'block';
         controls.style.display = 'block';
-        
+
         console.log('🎯 showControlsAndPlay called', {
             readyState: player.readyState,
             duration: player.duration,
             networkState: player.networkState
         });
-        
-        // ✅ FIX: Проверяем готовность перед проигрыванием
+
+        const tryPlay = () => {
+            player.play()
+              .then(() => {
+                  console.log('✅ play() resolved, paused =', player.paused);
+              })
+              .catch(err => {
+                  console.error('❌ play() failed:', err);
+              });
+        };
+
         if (player.readyState >= 2) {
-            console.log('▶️ Playing immediately (readyState >= 2)');
-            player.play().catch((err) => {
-                console.error('❌ Autoplay blocked or failed:', err);
-            });
+            // есть метаданные + первый кадр
+            tryPlay();
         } else {
-            console.log('⏳ Waiting for canplay event...');
-            player.addEventListener('canplay', () => {
-                console.log('▶️ canplay event fired, playing now');
-                player.play().catch((err) => {
-                    console.error('❌ Play failed:', err);
-                });
-            }, { once: true });
-            
-            player.addEventListener('error', () => {
-                console.error('❌ Player error event:', player.error);
-                loader.style.display = 'none';
+            // ждём реальной загрузки первого сегмента
+            player.addEventListener('loadeddata', () => {
+                console.log('📥 loadeddata fired, trying play');
+                tryPlay();
             }, { once: true });
         }
     }
