@@ -506,4 +506,4 @@ function canPlayNativeHls() {
     return false;  // Всегда используем hls.js
 }
 
-console.log("🔥🔥 NEW BUILD:", "29.11.2025 06:15:10");
+console.log("🔥🔥 NEW BUILD:", "29.11.2025 06:15:06");
