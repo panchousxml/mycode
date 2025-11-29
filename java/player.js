@@ -1,4 +1,3 @@
-console.log('PLAYER JS BUILD', '2025-11-29 07:05');
 document.addEventListener("DOMContentLoaded", () => {
     requestAnimationFrame(checkWrapper);
 });
@@ -506,5 +505,4 @@ function runNeoPlayer(wrap, wrapIndex) {
 function canPlayNativeHls() {
     return false;  // Всегда используем hls.js
 }
-
-console.log("PLAYER VERSION:", 1764390442);
+console.log("🔥🔥 NEW BUILD:", "29.11.2025 05:37:31");
