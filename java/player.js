@@ -30,7 +30,6 @@ function checkPlayerReady(wrappers) {
 }
 
 function initNeoPlayer(wrappers) {
-    console.log("PLAYER VERSION: FIXED", Date.now());
     wrappers.forEach((wrap, index) => runNeoPlayer(wrap, index));
 }
 
@@ -507,3 +506,5 @@ function runNeoPlayer(wrap, wrapIndex) {
 function canPlayNativeHls() {
     return false;  // Всегда используем hls.js
 }
+
+console.log("PLAYER VERSION:", 1764390442);
