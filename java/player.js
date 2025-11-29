@@ -367,6 +367,13 @@ function runNeoPlayer(wrap, wrapIndex) {
 
     player.addEventListener('pause', () => {
         if (isDragging) return;
+
+        // Останавливаем загрузку HLS при паузе
+        if (hlsInstance && manifestReady) {
+            console.log('⏸️ Pause detected, stopping HLS load');
+            hlsInstance.stopLoad();
+        }
+
         clearTimeout(pauseTimeout);
         pauseTimeout = setTimeout(() => {
             if (player.paused) {
@@ -381,6 +388,12 @@ function runNeoPlayer(wrap, wrapIndex) {
 
     player.addEventListener('play', () => {
         clearTimeout(pauseTimeout);
+
+        // Возобновляем загрузку HLS при play
+        if (hlsInstance && manifestReady) {
+            console.log('▶️ Play detected, starting HLS load');
+            hlsInstance.startLoad();
+        }
     });
 
     function setPlayIcon(isPlay) {
