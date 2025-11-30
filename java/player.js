@@ -39,6 +39,7 @@ function runNeoPlayer(wrap, wrapIndex) {
     let qual;
     let player;
     let currentDisplayQuality = 'Auto';
+    let optimalLevel = 0;
 
     const isNativeHls = canPlayNativeHls();
     const preview = wrap.querySelector('.neo-preview');
@@ -169,6 +170,16 @@ function runNeoPlayer(wrap, wrapIndex) {
             });
 
             hlsInstance.loadSource(videoData.hls);
+            // Блокировать переключение качества для второго плеера (ДО attach!)
+            hlsInstance.on(Hls.Events.LEVEL_SWITCHING, (event, data) => {
+                if (wrapIndex === 1) {
+                    if (data.level !== optimalLevel) {
+                        hlsInstance.nextLevel = optimalLevel;
+                        console.log('🔒 [EARLY] BLOCKED level switch to', data.level, '→ forcing 720p (index', optimalLevel + ')');
+                    }
+                }
+            });
+
             hlsInstance.attachMedia(player);
             console.log('✅ HLS attached to player, waiting for manifest...');
         } else {
@@ -243,7 +254,7 @@ function runNeoPlayer(wrap, wrapIndex) {
         console.log('📡 MANIFEST_PARSED fired');
         console.log('📦 Levels:', hlsInstance.levels);
 
-        const optimalLevel = findOptimalStartLevel();
+        optimalLevel = findOptimalStartLevel();
         hlsInstance.startLevel = optimalLevel;
         hlsInstance.nextLevel = optimalLevel;  // Принудительно устанавливаем для корректного лейбла
         console.log('🚀 Starting at level:', optimalLevel, 'height:', hlsInstance.levels[optimalLevel].height);
@@ -256,18 +267,17 @@ function runNeoPlayer(wrap, wrapIndex) {
         }
 
         if (wrapIndex === 1) {
-            // Второе видео: стартуем с 720p, Auto режим с максимумом 720p
             hlsInstance.startLevel = optimalLevel;
+            hlsInstance.currentLevel = optimalLevel;
             hlsInstance.maxAutoLevel = optimalLevel;
-            hlsInstance.currentLevel = -1;  // Auto режим
+            hlsInstance.nextLevel = optimalLevel;
 
-            // Сбросить ABR-историю (не использовать старые данные о скорости сети)
-            if (hlsInstance.abr) {
-                hlsInstance.abr.resetEwma();
-                console.log('🔄 Player 2: ABR history RESET');
+            if (hlsInstance.abrController) {
+                hlsInstance.abrController.minAutoLevel = optimalLevel;
+                hlsInstance.abrController.maxAutoLevel = optimalLevel;
             }
 
-            console.log('🚀 Player 2: Starting at 720p, Auto mode (max 720p, short video)');
+            console.log('🔒 Player 2: ABSOLUTE LOCK 720p');
 
         } else {
             hlsInstance.currentLevel = -1;
