@@ -274,6 +274,11 @@ function runNeoPlayer(wrap, wrapIndex) {
                 const speedMbps = measureSpeedFromFirstSegment(data);
                 console.log(`📊 Player 2: Network speed: ${speedMbps} Mbps (info only)`);
                 console.log('🔒 Player 2: Quality LOCKED at 720p, no more switching');
+
+                // Разрешаем воспроизведение после фиксации качества
+                player.play().catch(err => {
+                    console.error('❌ Play failed:', err);
+                });
             });
 
         } else {
