@@ -266,28 +266,14 @@ function runNeoPlayer(wrap, wrapIndex) {
             console.log(`📍 maxAutoLevel LOCKED to index ${maxAutoLevelIndex} (720p) - 1080p blocked for auto`);
         }
 
-        // Для второго видео: замеряем скорость на ПЕРВОМ реальном сегменте
+        // Для второго видео: замеряем скорость, но качество не меняем (всегда 720p)
         if (wrapIndex === 1) {
-            hlsInstance.currentLevel = optimalLevel; // Стартуем с 720p
+            hlsInstance.currentLevel = optimalLevel; // Стартуем и остаёмся на 720p
 
             hlsInstance.once(Hls.Events.FRAG_LOADED, (event, data) => {
                 const speedMbps = measureSpeedFromFirstSegment(data);
-                let targetLevel = optimalLevel; // По умолчанию 720p
-
-                if (speedMbps < 1.5) {
-                    targetLevel = hlsInstance.levels.findIndex(l => l.height === 360);
-                    console.log(`⬇️ Player 2: Slow network (${speedMbps} Mbps), switching to 360p`);
-                } else if (speedMbps < 2.5) {
-                    targetLevel = hlsInstance.levels.findIndex(l => l.height === 480);
-                    console.log(`➡️ Player 2: Medium network (${speedMbps} Mbps), switching to 480p`);
-                } else {
-                    console.log(`⬆️ Player 2: Fast network (${speedMbps} Mbps), staying at 720p`);
-                }
-
-                if (targetLevel !== -1) {
-                    hlsInstance.currentLevel = targetLevel;
-                }
-                console.log('🔒 Player 2: Quality LOCKED, no more ABR switching');
+                console.log(`📊 Player 2: Network speed: ${speedMbps} Mbps (info only)`);
+                console.log('🔒 Player 2: Quality LOCKED at 720p, no more switching');
             });
 
         } else {
