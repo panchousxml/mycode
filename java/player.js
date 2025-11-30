@@ -1,4 +1,4 @@
-console.log('PLAYER JS BUILD', '30-11-2025 1:56 - ADAPTIVE START LEVEL 720p');
+console.log('PLAYER JS BUILD', '30-11-2025 5:28 - ADAPTIVE START LEVEL 720p');
 document.addEventListener("DOMContentLoaded", () => {
     requestAnimationFrame(checkWrapper);
 });
@@ -310,24 +310,29 @@ function runNeoPlayer(wrap, wrapIndex) {
         }
     }
 
-    function enableQuality() {
-        if (!qual || !hlsInstance || !manifestReady) return;
+function enableQuality() {
+    if (!qual || !hlsInstance || !manifestReady) return;
 
-        qual.disabled = false;
+    qual.disabled = false;
 
-        qual.innerHTML = '<option value="auto">Auto</option>';
-
-        hlsInstance.levels.forEach(level => {
-            if (!level.height) return;
-            const option = document.createElement("option");
-            option.value = level.height;
-            option.text = `${level.height}p`;
-            qual.appendChild(option);
-        });
-
-        qual.onchange = () => handleQualityChange();
-    }
-
+    // ← ИСПРАВЛЕНО: строим только опции ДО 720p
+    let html = '<option value="auto">Auto</option>';
+    
+    hlsInstance.levels.forEach((level, idx) => {
+        if (!level.height) return;
+        
+        // ← НОВОЕ: не добавляем 1080p в селект вообще
+        if (level.height === 1080) {
+            console.log(`🔒 Hiding 1080p from manual selection (index ${idx})`);
+            return;
+        }
+        
+        html += `<option value="${level.height}">${level.height}p</option>`;
+    });
+    
+    qual.innerHTML = html;
+    qual.onchange = () => handleQualityChange();
+}
     function handleQualityChange() {
         console.log("🔄 handleQualityChange called!");
 
