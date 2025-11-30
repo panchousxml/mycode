@@ -219,26 +219,20 @@ function runNeoPlayer(wrap, wrapIndex) {
     function onManifestParsed() {
         console.log('📡 MANIFEST_PARSED fired');
         console.log('📦 Levels:', hlsInstance.levels);
-
+        
         const optimalLevel = findOptimalStartLevel();
         hlsInstance.startLevel = optimalLevel;
         console.log('🚀 Starting at level:', optimalLevel, 'height:', hlsInstance.levels[optimalLevel].height);
 
-        // ← ИСПРАВЛЕНО: ЖЁСТКО блокируем 1080p для Auto режима
-        // Находим индекс 720p и устанавливаем его как потолок для ABR
+        // ← БЛОКИРУЕМ 1080p для Auto режима
         const maxAutoLevelIndex = hlsInstance.levels.findIndex(l => l.height === 720);
         if (maxAutoLevelIndex !== -1) {
             hlsInstance.maxAutoLevel = maxAutoLevelIndex;
-            console.log(`📍 maxAutoLevel LOCKED to index ${maxAutoLevelIndex} (720p) - 1080p blocked for auto-select`);
-        } else {
-            // Fallback: если 720p нет, берём предпоследний уровень
-            hlsInstance.maxAutoLevel = Math.max(0, hlsInstance.levels.length - 2);
-            console.log(`📍 720p not found, maxAutoLevel set to index ${hlsInstance.maxAutoLevel}`);
+            console.log(`📍 maxAutoLevel LOCKED to index ${maxAutoLevelIndex} (720p) - 1080p blocked for auto`);
         }
 
-        // ← ВАЖНО: включаем Auto режим ПОСЛЕ установки maxAutoLevel
         hlsInstance.currentLevel = -1;
-        console.log('🌈 Enabled Auto mode with 720p cap (1080p only on manual select)');
+        console.log('🌈 Enabled Auto mode with 720p cap');
 
         manifestReady = true;
         enableQuality();
@@ -315,19 +309,19 @@ function enableQuality() {
 
     qual.disabled = false;
 
-    // ← ИСПРАВЛЕНО: строим только опции ДО 720p
+    // ← СТРОИМ селект с 1080p помеченной как manual only
     let html = '<option value="auto">Auto</option>';
     
     hlsInstance.levels.forEach((level, idx) => {
         if (!level.height) return;
         
-        // ← НОВОЕ: не добавляем 1080p в селект вообще
+        // ← 1080p добавляем, но с пометкой
         if (level.height === 1080) {
-            console.log(`🔒 Hiding 1080p from manual selection (index ${idx})`);
-            return;
+            html += `<option value="${level.height}">${level.height}p (manual only)</option>`;
+            console.log(`🎬 Added 1080p to manual selection only`);
+        } else {
+            html += `<option value="${level.height}">${level.height}p</option>`;
         }
-        
-        html += `<option value="${level.height}">${level.height}p</option>`;
     });
     
     qual.innerHTML = html;
