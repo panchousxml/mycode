@@ -129,25 +129,14 @@ function runNeoPlayer(wrap, wrapIndex) {
             console.log('🎬 Starting HLS playback from:', videoData.hls);
             console.log('✅ window.Hls exists:', !!window.Hls);
             console.log('✅ Hls.isSupported():', Hls.isSupported());
-            // Кастомный loader без Range запросов
-            class NoRangeLoader extends Hls.DefaultConfig.loader {
-                load(context, config, callbacks) {
-                    // Принудительно удаляем rangeStart и rangeEnd — качаем файлы целиком
-                    context.rangeStart = undefined;
-                    context.rangeEnd = undefined;
-                    super.load(context, config, callbacks);
-                }
-            }
-
             hlsInstance = new Hls({
                 backBufferLength: 90,
-                progressive: false,      // Отключить progressive streaming
+                progressive: true,       // Включить progressive streaming для быстрого старта
                 enableWorker: true,
-                lowLatencyMode: false,
-                loader: NoRangeLoader    // Использовать кастомный loader
+                lowLatencyMode: false
             });
 
-            console.log('✅ Progressive streaming отключен, используется NoRangeLoader');
+            console.log('✅ Progressive streaming включен, используется стандартный loader');
             
             hlsInstance.on(Hls.Events.MANIFEST_PARSING_STARTED, () => {
                 console.log('📡 Manifest parsing started...');
@@ -279,6 +268,16 @@ function runNeoPlayer(wrap, wrapIndex) {
         } else {
             hlsInstance.currentLevel = -1;
             console.log('🌈 Player 1: Auto mode with 720p cap');
+
+            setTimeout(() => {
+                if (!hlsInstance || player.paused) return;
+
+                const hdIndex = hlsInstance.levels.findIndex(l => l.height === 720);
+                if (hdIndex !== -1) {
+                    console.log('⬆️ Upgrading Player 1 to 720p after warm-up');
+                    hlsInstance.currentLevel = hdIndex;
+                }
+            }, 3000);
         }
 
         manifestReady = true;
