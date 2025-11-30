@@ -1,52 +1,4 @@
-// === МИНИМАЛЬНЫЙ ABR ===
-const ABR = {
-    STARTUP_LOCK_TIME: 10000,      // 10 сек блокировка при старте
-    MIN_BUFFER_UPGRADE: 10,        // Нужно 10 сек буфера чтобы подняться
-    MIN_BUFFER_DOWNGRADE: 2,       // Ниже 2 сек - откатываемся вниз
-    MIN_SWITCH_INTERVAL: 15000,    // Менять качество минимум раз в 15 сек
-};
-
-class ABRController {
-    constructor() {
-        this.currentBitrate = 360;
-        this.lastSwitch = 0;
-        this.startTime = Date.now();
-    }
-
-    update(buffered, availableBitrates) {
-        const now = Date.now();
-        const inStartup = (now - this.startTime) < ABR.STARTUP_LOCK_TIME;
-        const canSwitch = (now - this.lastSwitch) > ABR.MIN_SWITCH_INTERVAL;
-
-        if (inStartup || !canSwitch) return this.currentBitrate;
-
-        // Откатываемся вниз если критически мало буфера
-        if (buffered < ABR.MIN_BUFFER_DOWNGRADE) {
-            const lower = availableBitrates.filter(b => b < this.currentBitrate)[0];
-            if (lower) {
-                this.currentBitrate = lower;
-                this.lastSwitch = now;
-            }
-            return this.currentBitrate;
-        }
-
-        // Поднимаемся вверх если буфер достаточно наполнен
-        if (buffered > ABR.MIN_BUFFER_UPGRADE) {
-            const higher = availableBitrates
-                .filter(b => b > this.currentBitrate)
-                .sort((a, b) => a - b)[0];
-            if (higher) {
-                this.currentBitrate = higher;
-                this.lastSwitch = now;
-            }
-        }
-
-        return this.currentBitrate;
-    }
-}
-
-const abr = new ABRController();
-console.log('PLAYER JS BUILD', '30-11-2025 5:28 - ADAPTIVE START LEVEL 360p');
+console.log('PLAYER JS BUILD', '30-11-2025 5:28 - ADAPTIVE START LEVEL 720p');
 document.addEventListener("DOMContentLoaded", () => {
     requestAnimationFrame(checkWrapper);
 });
@@ -88,8 +40,6 @@ function runNeoPlayer(wrap, wrapIndex) {
     let player;
     let currentDisplayQuality = 'Auto';
     let optimalLevel = 0;
-    const abrEnabled = wrapIndex !== 1;
-    let abrBufferTimer = null;
 
     const isNativeHls = canPlayNativeHls();
     const preview = wrap.querySelector('.neo-preview');
@@ -194,17 +144,7 @@ function runNeoPlayer(wrap, wrapIndex) {
                 progressive: false,      // Отключить progressive streaming
                 enableWorker: true,
                 lowLatencyMode: false,
-                loader: NoRangeLoader,    // Использовать кастомный loader
-
-                // ✅ Баланс между быстрым стартом и плавным воспроизведением:
-                maxBufferLength: 2,           // 2 сегмента ≈ 13 секунд буфера
-                maxMaxBufferLength: 4,        // Верхний предел буфера
-                startFragPrefetch: true,
-                liveSyncDurationCount: 2,
-
-                // Сглаживание адаптивного выбора качества:
-                abrBandWidthFactor: 0.8,
-                abrBandWidthUpFactor: 0.9,
+                loader: NoRangeLoader    // Использовать кастомный loader
             });
 
             console.log('✅ Progressive streaming отключен, используется NoRangeLoader');
@@ -221,6 +161,7 @@ function runNeoPlayer(wrap, wrapIndex) {
                 // Блокируем 1080p только для первого плеера (второй уже защищён через maxAutoLevel)
                 // Если в Auto режиме (currentLevel === -1) и ABR пытается выбрать уровень 3 (1080p)
                 if (wrapIndex === 0 && hlsInstance.currentLevel === -1 && data.level === 3) {
+                    console.log('🚫 BLOCKED auto-switch to 1080p (level 3), forcing 720p (level 2)');
                     hlsInstance.nextLevel = 2;  // Принудительно переключаем на 720p
                 }
             });
@@ -231,14 +172,12 @@ function runNeoPlayer(wrap, wrapIndex) {
                 if (wrapIndex === 1) {
                     if (data.level !== optimalLevel) {
                         hlsInstance.nextLevel = optimalLevel;
+                        console.log('🔒 [EARLY] BLOCKED level switch to', data.level, '→ forcing 720p (index', optimalLevel + ')');
                     }
                 }
             });
 
             hlsInstance.attachMedia(player);
-            if (!abrBufferTimer && abrEnabled) {
-                abrBufferTimer = setInterval(() => applyAbrDecision(), 500);
-            }
             console.log('✅ HLS attached to player, waiting for manifest...');
         } else {
             console.log('❌ HLS not supported!');
@@ -254,10 +193,14 @@ function runNeoPlayer(wrap, wrapIndex) {
         if (!hlsInstance || !hlsInstance.levels.length) return 0;
 
         const levels = hlsInstance.levels;
-        const targetHeight = abr.currentBitrate;
+
+        // Индивидуальная логика старта качества: второе видео (wrapIndex === 1) → 720p, остальные → 360p
+        const targetHeight = wrapIndex === 1 ? 720 : 360;  // второе видео → 720, остальное → 360
+        console.log(`🎯 Target quality for player ${wrapIndex}:`, targetHeight);
 
         let idx = levels.findIndex(l => l.height === targetHeight);
         if (idx !== -1) {
+            console.log(`✅ Found ${targetHeight}p at index`, idx);
             return idx;
         }
 
@@ -270,48 +213,12 @@ function runNeoPlayer(wrap, wrapIndex) {
         }
 
         if (idx !== -1) {
+            console.log(`⬇️ ${targetHeight}p not found, using fallback: ${levels[idx].height}p at index ${idx}`);
             return idx;
         }
 
+        console.log(`⬆️ All levels above ${targetHeight}p, using lowest`);
         return levels.length - 1;
-    }
-    
-    function findLevelIndexByHeight(height) {
-        if (!hlsInstance || !hlsInstance.levels.length) return null;
-        const levelIndex = hlsInstance.levels.findIndex(level => level.height === height);
-        return levelIndex !== -1 ? levelIndex : null;
-    }
-
-    function applyAbrDecision() {
-        if (!manifestReady || !hlsInstance || !abrEnabled) return;
-
-        const bufferedDuration = player.buffered.length > 0
-            ? player.buffered.end(player.buffered.length - 1) - player.currentTime
-            : 0;
-        const availableBitrates = hlsInstance.levels
-            .map(level => level.height)
-            .filter(Boolean)
-            .sort((a, b) => a - b);
-
-        if (!availableBitrates.length) return;
-
-        const targetBitrate = abr.update(bufferedDuration, availableBitrates);
-        const targetIndex = findLevelIndexByHeight(targetBitrate);
-
-        if (targetIndex === null) return;
-
-        const shouldSwitch =
-            hlsInstance.nextLevel !== targetIndex &&
-            hlsInstance.currentLevel !== targetIndex;
-
-        if (shouldSwitch) {
-            hlsInstance.nextLevel = targetIndex;
-
-            if (hlsInstance.currentLevel !== -1) {
-                hlsInstance.currentLevel = targetIndex;
-            }
-            updateQualityLabel();
-        }
     }
 
     function updateQualityLabel() {
@@ -322,9 +229,11 @@ function runNeoPlayer(wrap, wrapIndex) {
             const nextLevel = hlsInstance.nextLevel;
             const level = nextLevel !== -1 ? hlsInstance.levels[nextLevel] : hlsInstance.levels[0];
             currentDisplayQuality = level ? `${level.height}p` : 'Auto';
+            console.log('📊 Auto mode, displaying:', currentDisplayQuality);
         } else {
             const level = hlsInstance.levels[currentLevel];
             currentDisplayQuality = level ? `${level.height}p` : 'Auto';
+            console.log('📊 Fixed level, displaying:', currentDisplayQuality);
         }
 
         const firstOption = qual.querySelector('option[value="auto"]');
@@ -334,28 +243,24 @@ function runNeoPlayer(wrap, wrapIndex) {
     }
 
     function onLevelSwitched() {
+        console.log('🎯 LEVEL_SWITCHED, current level:', hlsInstance.currentLevel);
         updateQualityLabel();
     }
 
     function onManifestParsed() {
+        console.log('📡 MANIFEST_PARSED fired');
+        console.log('📦 Levels:', hlsInstance.levels);
+
         optimalLevel = findOptimalStartLevel();
         hlsInstance.startLevel = optimalLevel;
         hlsInstance.nextLevel = optimalLevel;  // Принудительно устанавливаем для корректного лейбла
-        if (abrEnabled) {
-            abr.currentBitrate = hlsInstance.levels[optimalLevel]?.height || abr.currentBitrate;
-            abr.startTime = Date.now();
-            abr.lastSwitch = 0;
-        }
-        // ✅ НОВОЕ: Явно принудительно стартуем загрузку сегментов
-        if (hlsInstance.startLoad && typeof hlsInstance.startLoad === 'function') {
-            hlsInstance.startLoad();
-            console.log('✅ MANIFEST: Forcefully triggered segment loading');
-        }
+        console.log('🚀 Starting at level:', optimalLevel, 'height:', hlsInstance.levels[optimalLevel].height);
 
         // ← БЛОКИРУЕМ 1080p для Auto режима
         const maxAutoLevelIndex = hlsInstance.levels.findIndex(l => l.height === 720);
         if (maxAutoLevelIndex !== -1) {
             hlsInstance.maxAutoLevel = maxAutoLevelIndex;
+            console.log(`📍 maxAutoLevel LOCKED to index ${maxAutoLevelIndex} (720p) - 1080p blocked for auto`);
         }
 
         if (wrapIndex === 1) {
@@ -368,14 +273,17 @@ function runNeoPlayer(wrap, wrapIndex) {
                 hlsInstance.abrController.minAutoLevel = optimalLevel;
                 hlsInstance.abrController.maxAutoLevel = optimalLevel;
             }
+
+            console.log('🔒 Player 2: ABSOLUTE LOCK 720p');
+
         } else {
             hlsInstance.currentLevel = -1;
+            console.log('🌈 Player 1: Auto mode with 720p cap');
         }
 
         manifestReady = true;
         enableQuality();
         updateQualityLabel();
-        applyAbrDecision();
         showControlsAndPlay();
     }
 
@@ -406,25 +314,30 @@ function runNeoPlayer(wrap, wrapIndex) {
         player.style.display = 'block';
         controls.style.display = 'block';
 
-        console.log('🎯 showControlsAndPlay called - immediate play attempt');
+        console.log('🎯 showControlsAndPlay called', {
+            readyState: player.readyState,
+            duration: player.duration,
+            networkState: player.networkState
+        });
 
-        // ✅ ИЗМЕНЕНО: Сразу пытаемся воспроизводить, БЕЗ ожидания loadeddata
-        // Браузер начнёт буферировать и воспроизводить одновременно
-        player.play()
-            .then(() => {
-                console.log('✅ PLAYBACK: play() resolved immediately - streaming started');
-            })
-            .catch(err => {
-                console.error('⚠️ PLAYBACK: play() failed at immediate attempt, will retry on loadeddata:', err.name);
-                
-                // Fallback: если браузер отказал в immediate play (редко), слушаем loadeddata
-                player.addEventListener('loadeddata', () => {
-                    console.log('📥 PLAYBACK: loadeddata fired, retry play attempt');
-                    player.play().catch(() => {
-                        console.error('❌ PLAYBACK: play() also failed on loadeddata');
-                    });
-                }, { once: true });
-            });
+        const tryPlay = () => {
+            player.play()
+              .then(() => {
+                  console.log('✅ play() resolved, paused =', player.paused);
+              })
+              .catch(err => {
+                  console.error('❌ play() failed:', err);
+              });
+        };
+
+        if (player.readyState >= 2) {
+            tryPlay();
+        } else {
+            player.addEventListener('loadeddata', () => {
+                console.log('📥 loadeddata fired, trying play');
+                tryPlay();
+            }, { once: true });
+        }
     }
 
     function isPreviewVisible() {
@@ -508,7 +421,6 @@ function enableQuality() {
         if (player.duration && !isDragging) {
             fill.style.width = (player.currentTime / player.duration * 100) + '%';
         }
-        applyAbrDecision();
     });
 
     player.addEventListener('pause', () => {
@@ -722,4 +634,4 @@ function enableQuality() {
 function canPlayNativeHls() {
     return false;
 }
-console.log("🚀 BUILD WITH ADAPTIVE START LEVEL 360p");
+console.log("🚀 BUILD WITH ADAPTIVE START LEVEL 720p");
