@@ -102,18 +102,6 @@ function runNeoPlayer(wrap, wrapIndex) {
         }
     });
 
-    // Не делаем тест - используем скорость первого реального сегмента
-    function measureSpeedFromFirstSegment(data) {
-        if (!data.stats || !data.stats.loading) return 2.0; // Fallback
-
-        const loadTime = (data.stats.loading.end - data.stats.loading.start) / 1000;
-        const bytes = data.stats.loaded;
-        const speedMbps = (bytes * 8 / loadTime / 1000000).toFixed(2);
-
-        console.log(`📊 Player 2: First segment speed: ${speedMbps} Mbps`);
-        return parseFloat(speedMbps);
-    }
-
     function startVideo() {
         console.log('🔴 startVideo CALLED');
 
@@ -266,20 +254,12 @@ function runNeoPlayer(wrap, wrapIndex) {
             console.log(`📍 maxAutoLevel LOCKED to index ${maxAutoLevelIndex} (720p) - 1080p blocked for auto`);
         }
 
-        // Для второго видео: замеряем скорость, но качество не меняем (всегда 720p)
         if (wrapIndex === 1) {
-            hlsInstance.currentLevel = optimalLevel; // Стартуем и остаёмся на 720p
-
-            hlsInstance.once(Hls.Events.FRAG_LOADED, (event, data) => {
-                const speedMbps = measureSpeedFromFirstSegment(data);
-                console.log(`📊 Player 2: Network speed: ${speedMbps} Mbps (info only)`);
-                console.log('🔒 Player 2: Quality LOCKED at 720p, no more switching');
-
-                // Разрешаем воспроизведение после фиксации качества
-                player.play().catch(err => {
-                    console.error('❌ Play failed:', err);
-                });
-            });
+            // Второе видео: стартуем с 720p, фиксируем навсегда (без обработчиков)
+            hlsInstance.startLevel = optimalLevel;
+            hlsInstance.nextLevel = optimalLevel;
+            hlsInstance.currentLevel = optimalLevel;
+            console.log('🔒 Player 2: FIXED at 720p (short video, no ABR)');
 
         } else {
             hlsInstance.currentLevel = -1;
