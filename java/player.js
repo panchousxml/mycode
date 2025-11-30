@@ -147,8 +147,8 @@ function runNeoPlayer(wrap, wrapIndex) {
                 loader: NoRangeLoader,    // Использовать кастомный loader
 
                 // ✅ КРИТИЧНЫЕ ПАРАМЕТРЫ ДЛЯ УСКОРЕНИЯ СТАРТА:
-                maxBufferLength: 1,           // Минимальный буфер перед стартом (было: ~30 по умолчанию)
-                maxMaxBufferLength: 2,        // Максимум буфера (было: ~60 по умолчанию)
+                maxBufferLength: 4,           // Минимальный буфер перед стартом (было: ~30 по умолчанию)
+                maxMaxBufferLength: 8,        // Максимум буфера (было: ~60 по умолчанию)
                 startFragPrefetch: true,      // Не ждём загрузки 2 сегментов, начинаем с 1
                 liveSyncDurationCount: 2,     // Минимальное отставание от края буфера (было: 3)
             });
