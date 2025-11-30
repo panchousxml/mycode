@@ -152,20 +152,19 @@ function runNeoPlayer(wrap, wrapIndex) {
 
                 defaultAudioCodec: undefined,
                 startLevel: undefined,
-                xhrSetup: function(xhr) {
-                    // Запретить Range запросы
-                    const originalOpen = xhr.open;
-                    xhr.open = function(method, url, async) {
-                        // Для .ts файлов качаем целиком
-                        if (url && url.includes('.ts')) {
-                            console.log('📥 Загрузка сегмента целиком:', url.split('/').pop());
+                xhrSetup: function(xhr, url) {
+                    const originalSetRequestHeader = xhr.setRequestHeader;
+                    xhr.setRequestHeader = function(header, value) {
+                        if (header.toLowerCase() === 'range') {
+                            console.log('🚫 Заблокирован Range заголовок для:', url.split('/').pop());
+                            return;
                         }
-                        return originalOpen.apply(this, arguments);
+                        return originalSetRequestHeader.apply(this, arguments);
                     };
                 }
             });
 
-            console.log('✅ Отключены Range запросы — сегменты качаются целиком');
+            console.log('✅ Range запросы заблокированы через перехват setRequestHeader');
             
             hlsInstance.on(Hls.Events.MANIFEST_PARSING_STARTED, () => {
                 console.log('📡 Manifest parsing started...');
