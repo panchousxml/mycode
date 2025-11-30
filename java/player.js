@@ -1,114 +1,52 @@
-console.log('PLAYER JS BUILD', '30-11-2025 5:28 - ADAPTIVE START LEVEL 360p');
-
-// === ABR CONFIG ===
-const ABR_CONFIG = {
-    STARTUP_BITRATE: 360,
-    STARTUP_LOCK_TIME: 30000,
-    MIN_BUFFER_FOR_UPGRADE: 15,
-    MIN_BUFFER_FOR_STABILITY: 8,
-    CRITICAL_BUFFER: 3,
-    MIN_SWITCH_INTERVAL: 20000,
-    BANDWIDTH_STABILITY_WINDOW: 3,
+// === МИНИМАЛЬНЫЙ ABR ===
+const ABR = {
+    STARTUP_LOCK_TIME: 10000,      // 10 сек блокировка при старте
+    MIN_BUFFER_UPGRADE: 10,        // Нужно 10 сек буфера чтобы подняться
+    MIN_BUFFER_DOWNGRADE: 2,       // Ниже 2 сек - откатываемся вниз
+    MIN_SWITCH_INTERVAL: 15000,    // Менять качество минимум раз в 15 сек
 };
 
 class ABRController {
     constructor() {
-        this.currentBitrate = ABR_CONFIG.STARTUP_BITRATE;
-        this.lastSwitchTime = 0;
+        this.currentBitrate = 360;
+        this.lastSwitch = 0;
         this.startTime = Date.now();
-        this.bandwidthHistory = [];
-        this.isStartupPhase = true;
     }
 
-    onSegmentLoaded(segmentBitrate, loadTime, segmentSize) {
+    update(buffered, availableBitrates) {
         const now = Date.now();
-        const estimatedBandwidth = (segmentSize * 8) / (loadTime / 1000);
+        const inStartup = (now - this.startTime) < ABR.STARTUP_LOCK_TIME;
+        const canSwitch = (now - this.lastSwitch) > ABR.MIN_SWITCH_INTERVAL;
 
-        this.bandwidthHistory.push(estimatedBandwidth);
-        if (this.bandwidthHistory.length > ABR_CONFIG.BANDWIDTH_STABILITY_WINDOW) {
-            this.bandwidthHistory.shift();
-        }
+        if (inStartup || !canSwitch) return this.currentBitrate;
 
-        if (this.isStartupPhase && (now - this.startTime) > ABR_CONFIG.STARTUP_LOCK_TIME) {
-            this.isStartupPhase = false;
-        }
-
-        if (this.isStartupPhase) {
-            return this.currentBitrate;
-        }
-
-        if ((now - this.lastSwitchTime) < ABR_CONFIG.MIN_SWITCH_INTERVAL) {
-            return this.currentBitrate;
-        }
-
-        return this.currentBitrate;
-    }
-
-    updateBasedOnBuffer(bufferedDuration, availableBitrates) {
-        const now = Date.now();
-
-        if (this.isStartupPhase) {
-            return this.currentBitrate;
-        }
-
-        if (bufferedDuration < ABR_CONFIG.CRITICAL_BUFFER) {
-            const lowerBitrate = this.findLowerBitrate(availableBitrates);
-            if (lowerBitrate && lowerBitrate < this.currentBitrate) {
-                this.currentBitrate = lowerBitrate;
-                this.lastSwitchTime = now;
-                return this.currentBitrate;
+        // Откатываемся вниз если критически мало буфера
+        if (buffered < ABR.MIN_BUFFER_DOWNGRADE) {
+            const lower = availableBitrates.filter(b => b < this.currentBitrate)[0];
+            if (lower) {
+                this.currentBitrate = lower;
+                this.lastSwitch = now;
             }
-        }
-
-        if ((now - this.lastSwitchTime) < ABR_CONFIG.MIN_SWITCH_INTERVAL) {
             return this.currentBitrate;
         }
 
-        const isBandwidthStable = this.isBandwidthStable();
-
-        if (bufferedDuration >= ABR_CONFIG.MIN_BUFFER_FOR_UPGRADE && isBandwidthStable) {
-            const higherBitrate = this.findHigherBitrate(availableBitrates);
-            if (higherBitrate && higherBitrate > this.currentBitrate) {
-                this.currentBitrate = higherBitrate;
-                this.lastSwitchTime = now;
-                return this.currentBitrate;
-            }
-        }
-
-        if (bufferedDuration < ABR_CONFIG.MIN_BUFFER_FOR_STABILITY && !isBandwidthStable) {
-            const lowerBitrate = this.findLowerBitrate(availableBitrates);
-            if (lowerBitrate && lowerBitrate < this.currentBitrate) {
-                this.currentBitrate = lowerBitrate;
-                this.lastSwitchTime = now;
-                return this.currentBitrate;
+        // Поднимаемся вверх если буфер достаточно наполнен
+        if (buffered > ABR.MIN_BUFFER_UPGRADE) {
+            const higher = availableBitrates
+                .filter(b => b > this.currentBitrate)
+                .sort((a, b) => a - b)[0];
+            if (higher) {
+                this.currentBitrate = higher;
+                this.lastSwitch = now;
             }
         }
 
         return this.currentBitrate;
-    }
-
-    isBandwidthStable() {
-        if (this.bandwidthHistory.length < ABR_CONFIG.BANDWIDTH_STABILITY_WINDOW) {
-            return false;
-        }
-
-        const avgBandwidth = this.bandwidthHistory.reduce((a, b) => a + b, 0) / this.bandwidthHistory.length;
-        const maxDeviation = Math.max(...this.bandwidthHistory.map(b => Math.abs(b - avgBandwidth)));
-        const deviationPercent = (maxDeviation / avgBandwidth) * 100;
-
-        return deviationPercent < 20;
-    }
-
-    findHigherBitrate(availableBitrates) {
-        const higher = availableBitrates.filter(b => b > this.currentBitrate).sort((a, b) => a - b);
-        return higher.length > 0 ? higher[0] : null;
-    }
-
-    findLowerBitrate(availableBitrates) {
-        const lower = availableBitrates.filter(b => b < this.currentBitrate).sort((a, b) => b - a);
-        return lower.length > 0 ? lower[0] : null;
     }
 }
+
+const abr = new ABRController();
+console.log('PLAYER JS BUILD', '30-11-2025 5:28 - ADAPTIVE START LEVEL 360p');
 document.addEventListener("DOMContentLoaded", () => {
     requestAnimationFrame(checkWrapper);
 });
@@ -151,7 +89,6 @@ function runNeoPlayer(wrap, wrapIndex) {
     let currentDisplayQuality = 'Auto';
     let optimalLevel = 0;
     const abrEnabled = wrapIndex !== 1;
-    const abrController = new ABRController();
     let abrBufferTimer = null;
 
     const isNativeHls = canPlayNativeHls();
@@ -279,24 +216,11 @@ function runNeoPlayer(wrap, wrapIndex) {
             hlsInstance.on(Hls.Events.MANIFEST_PARSED, onManifestParsed);
             hlsInstance.on(Hls.Events.ERROR, onHlsError);
             hlsInstance.on(Hls.Events.LEVEL_SWITCHED, onLevelSwitched);
-            hlsInstance.on(Hls.Events.FRAG_LOADED, (event, data) => {
-                if (!abrEnabled) return;
-
-                const loadTime = (data?.stats?.tload && data?.stats?.trequest)
-                    ? data.stats.tload - data.stats.trequest
-                    : 0;
-                const segmentSize = data?.stats?.total ?? data?.stats?.loaded ?? 0;
-                const levelIndex = data?.frag?.level ?? -1;
-                const levelHeight = hlsInstance.levels?.[levelIndex]?.height || ABR_CONFIG.STARTUP_BITRATE;
-
-                abrController.onSegmentLoaded(levelHeight, loadTime, segmentSize);
-            });
             // ← НОВОЕ: блокируем попытку ABR переключиться на 1080p в Auto режиме
             hlsInstance.on(Hls.Events.LEVEL_SWITCHING, (event, data) => {
                 // Блокируем 1080p только для первого плеера (второй уже защищён через maxAutoLevel)
                 // Если в Auto режиме (currentLevel === -1) и ABR пытается выбрать уровень 3 (1080p)
                 if (wrapIndex === 0 && hlsInstance.currentLevel === -1 && data.level === 3) {
-                    console.log('🚫 BLOCKED auto-switch to 1080p (level 3), forcing 720p (level 2)');
                     hlsInstance.nextLevel = 2;  // Принудительно переключаем на 720p
                 }
             });
@@ -307,14 +231,13 @@ function runNeoPlayer(wrap, wrapIndex) {
                 if (wrapIndex === 1) {
                     if (data.level !== optimalLevel) {
                         hlsInstance.nextLevel = optimalLevel;
-                        console.log('🔒 [EARLY] BLOCKED level switch to', data.level, '→ forcing 720p (index', optimalLevel + ')');
                     }
                 }
             });
 
             hlsInstance.attachMedia(player);
             if (!abrBufferTimer && abrEnabled) {
-                abrBufferTimer = setInterval(() => applyAbrDecision(), 3000);
+                abrBufferTimer = setInterval(() => applyAbrDecision(), 500);
             }
             console.log('✅ HLS attached to player, waiting for manifest...');
         } else {
@@ -331,12 +254,10 @@ function runNeoPlayer(wrap, wrapIndex) {
         if (!hlsInstance || !hlsInstance.levels.length) return 0;
 
         const levels = hlsInstance.levels;
-        const targetHeight = ABR_CONFIG.STARTUP_BITRATE;
-        console.log(`🎯 Target quality for player ${wrapIndex}:`, targetHeight);
+        const targetHeight = abr.currentBitrate;
 
         let idx = levels.findIndex(l => l.height === targetHeight);
         if (idx !== -1) {
-            console.log(`✅ Found ${targetHeight}p at index`, idx);
             return idx;
         }
 
@@ -349,46 +270,32 @@ function runNeoPlayer(wrap, wrapIndex) {
         }
 
         if (idx !== -1) {
-            console.log(`⬇️ ${targetHeight}p not found, using fallback: ${levels[idx].height}p at index ${idx}`);
             return idx;
         }
 
-        console.log(`⬆️ All levels above ${targetHeight}p, using lowest`);
         return levels.length - 1;
     }
-
+    
     function findLevelIndexByHeight(height) {
         if (!hlsInstance || !hlsInstance.levels.length) return null;
         const levelIndex = hlsInstance.levels.findIndex(level => level.height === height);
         return levelIndex !== -1 ? levelIndex : null;
     }
 
-    function getBufferedDuration() {
-        if (!player || !player.buffered || player.buffered.length === 0) return 0;
-
-        const currentTime = player.currentTime;
-        for (let i = 0; i < player.buffered.length; i++) {
-            const start = player.buffered.start(i);
-            const end = player.buffered.end(i);
-            if (currentTime >= start && currentTime <= end) {
-                return end - currentTime;
-            }
-        }
-
-        return 0;
-    }
-
     function applyAbrDecision() {
         if (!manifestReady || !hlsInstance || !abrEnabled) return;
 
-        const bufferedDuration = getBufferedDuration();
+        const bufferedDuration = player.buffered.length > 0
+            ? player.buffered.end(player.buffered.length - 1) - player.currentTime
+            : 0;
         const availableBitrates = hlsInstance.levels
             .map(level => level.height)
-            .filter(Boolean);
+            .filter(Boolean)
+            .sort((a, b) => a - b);
 
         if (!availableBitrates.length) return;
 
-        const targetBitrate = abrController.updateBasedOnBuffer(bufferedDuration, availableBitrates);
+        const targetBitrate = abr.update(bufferedDuration, availableBitrates);
         const targetIndex = findLevelIndexByHeight(targetBitrate);
 
         if (targetIndex === null) return;
@@ -398,7 +305,6 @@ function runNeoPlayer(wrap, wrapIndex) {
             hlsInstance.currentLevel !== targetIndex;
 
         if (shouldSwitch) {
-            console.log('🔀 ABR decision → target index', targetIndex, 'height', targetBitrate);
             hlsInstance.nextLevel = targetIndex;
 
             if (hlsInstance.currentLevel !== -1) {
@@ -416,11 +322,9 @@ function runNeoPlayer(wrap, wrapIndex) {
             const nextLevel = hlsInstance.nextLevel;
             const level = nextLevel !== -1 ? hlsInstance.levels[nextLevel] : hlsInstance.levels[0];
             currentDisplayQuality = level ? `${level.height}p` : 'Auto';
-            console.log('📊 Auto mode, displaying:', currentDisplayQuality);
         } else {
             const level = hlsInstance.levels[currentLevel];
             currentDisplayQuality = level ? `${level.height}p` : 'Auto';
-            console.log('📊 Fixed level, displaying:', currentDisplayQuality);
         }
 
         const firstOption = qual.querySelector('option[value="auto"]');
@@ -430,30 +334,28 @@ function runNeoPlayer(wrap, wrapIndex) {
     }
 
     function onLevelSwitched() {
-        console.log('🎯 LEVEL_SWITCHED, current level:', hlsInstance.currentLevel);
         updateQualityLabel();
     }
 
     function onManifestParsed() {
-        console.log('📡 MANIFEST_PARSED fired');
-        console.log('📦 Levels:', hlsInstance.levels);
-
         optimalLevel = findOptimalStartLevel();
         hlsInstance.startLevel = optimalLevel;
         hlsInstance.nextLevel = optimalLevel;  // Принудительно устанавливаем для корректного лейбла
-        abrController.currentBitrate = hlsInstance.levels[optimalLevel]?.height || ABR_CONFIG.STARTUP_BITRATE;
+        if (abrEnabled) {
+            abr.currentBitrate = hlsInstance.levels[optimalLevel]?.height || abr.currentBitrate;
+            abr.startTime = Date.now();
+            abr.lastSwitch = 0;
+        }
         // ✅ НОВОЕ: Явно принудительно стартуем загрузку сегментов
         if (hlsInstance.startLoad && typeof hlsInstance.startLoad === 'function') {
             hlsInstance.startLoad();
             console.log('✅ MANIFEST: Forcefully triggered segment loading');
         }
-        console.log('🚀 Starting at level:', optimalLevel, 'height:', hlsInstance.levels[optimalLevel].height);
 
         // ← БЛОКИРУЕМ 1080p для Auto режима
         const maxAutoLevelIndex = hlsInstance.levels.findIndex(l => l.height === 720);
         if (maxAutoLevelIndex !== -1) {
             hlsInstance.maxAutoLevel = maxAutoLevelIndex;
-            console.log(`📍 maxAutoLevel LOCKED to index ${maxAutoLevelIndex} (720p) - 1080p blocked for auto`);
         }
 
         if (wrapIndex === 1) {
@@ -466,12 +368,8 @@ function runNeoPlayer(wrap, wrapIndex) {
                 hlsInstance.abrController.minAutoLevel = optimalLevel;
                 hlsInstance.abrController.maxAutoLevel = optimalLevel;
             }
-
-            console.log('🔒 Player 2: ABSOLUTE LOCK 720p');
-
         } else {
             hlsInstance.currentLevel = -1;
-            console.log('🌈 Player 1: Auto mode with 720p cap');
         }
 
         manifestReady = true;
