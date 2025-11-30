@@ -255,11 +255,11 @@ function runNeoPlayer(wrap, wrapIndex) {
         }
 
         if (wrapIndex === 1) {
-            // Второе видео: стартуем с 720p, фиксируем навсегда (без обработчиков)
+            // Второе видео: стартуем с 720p, Auto режим с максимумом 720p
             hlsInstance.startLevel = optimalLevel;
-            hlsInstance.nextLevel = optimalLevel;
-            hlsInstance.currentLevel = optimalLevel;
-            console.log('🔒 Player 2: FIXED at 720p (short video, no ABR)');
+            hlsInstance.maxAutoLevel = optimalLevel;
+            hlsInstance.currentLevel = -1;  // Auto режим
+            console.log('🚀 Player 2: Starting at 720p, Auto mode (max 720p, short video)');
 
         } else {
             hlsInstance.currentLevel = -1;
