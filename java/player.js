@@ -129,16 +129,18 @@ function runNeoPlayer(wrap, wrapIndex) {
             console.log('🎬 Starting HLS playback from:', videoData.hls);
             console.log('✅ window.Hls exists:', !!window.Hls);
             console.log('✅ Hls.isSupported():', Hls.isSupported());
+            // Отключить Range запросы — качаем файлы целиком
             hlsInstance = new Hls({
                 debug: false,
                 enableWorker: true,
                 lowLatencyMode: false,
-                
+
                 // Буфер и загрузка
                 maxLoadingDelay: 2,
                 maxBufferLength: 60,
                 maxMaxBufferLength: 120,
-                
+                backBufferLength: 90,
+
                 // ABR стабилизация (как в YouTube)
                 abrEwmaDefaultEstimate: 500000,
                 abrEwmaFastLive: 3.0,
@@ -147,10 +149,23 @@ function runNeoPlayer(wrap, wrapIndex) {
                 abrBandWidthUpFactor: 0.7,
                 abrMaxWithRealBitrate: false,
                 capLevelToPlayerSize: false,
-                
+
                 defaultAudioCodec: undefined,
-                startLevel: undefined
+                startLevel: undefined,
+                xhrSetup: function(xhr) {
+                    // Запретить Range запросы
+                    const originalOpen = xhr.open;
+                    xhr.open = function(method, url, async) {
+                        // Для .ts файлов качаем целиком
+                        if (url && url.includes('.ts')) {
+                            console.log('📥 Загрузка сегмента целиком:', url.split('/').pop());
+                        }
+                        return originalOpen.apply(this, arguments);
+                    };
+                }
             });
+
+            console.log('✅ Отключены Range запросы — сегменты качаются целиком');
             
             hlsInstance.on(Hls.Events.MANIFEST_PARSING_STARTED, () => {
                 console.log('📡 Manifest parsing started...');
