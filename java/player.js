@@ -131,7 +131,7 @@ function runNeoPlayer(wrap, wrapIndex) {
             console.log('✅ Hls.isSupported():', Hls.isSupported());
             hlsInstance = new Hls({
                 backBufferLength: 90,
-                progressive: true,       // Включить progressive streaming для быстрого старта
+                progressive: false,
                 enableWorker: true,
                 lowLatencyMode: false
             });
@@ -145,26 +145,7 @@ function runNeoPlayer(wrap, wrapIndex) {
             hlsInstance.on(Hls.Events.MANIFEST_PARSED, onManifestParsed);
             hlsInstance.on(Hls.Events.ERROR, onHlsError);
             hlsInstance.on(Hls.Events.LEVEL_SWITCHED, onLevelSwitched);
-            // ← НОВОЕ: блокируем попытку ABR переключиться на 1080p в Auto режиме
-            hlsInstance.on(Hls.Events.LEVEL_SWITCHING, (event, data) => {
-                // Блокируем 1080p только для первого плеера (второй уже защищён через maxAutoLevel)
-                // Если в Auto режиме (currentLevel === -1) и ABR пытается выбрать уровень 3 (1080p)
-                if (wrapIndex === 0 && hlsInstance.currentLevel === -1 && data.level === 3) {
-                    console.log('🚫 BLOCKED auto-switch to 1080p (level 3), forcing 720p (level 2)');
-                    hlsInstance.nextLevel = 2;  // Принудительно переключаем на 720p
-                }
-            });
-
             hlsInstance.loadSource(videoData.hls);
-            // Блокировать переключение качества для второго плеера (ДО attach!)
-            hlsInstance.on(Hls.Events.LEVEL_SWITCHING, (event, data) => {
-                if (wrapIndex === 1) {
-                    if (data.level !== optimalLevel) {
-                        hlsInstance.nextLevel = optimalLevel;
-                        console.log('🔒 [EARLY] BLOCKED level switch to', data.level, '→ forcing 720p (index', optimalLevel + ')');
-                    }
-                }
-            });
 
             hlsInstance.attachMedia(player);
             console.log('✅ HLS attached to player, waiting for manifest...');
@@ -242,7 +223,6 @@ function runNeoPlayer(wrap, wrapIndex) {
 
         optimalLevel = findOptimalStartLevel();
         hlsInstance.startLevel = optimalLevel;
-        hlsInstance.nextLevel = optimalLevel;  // Принудительно устанавливаем для корректного лейбла
         console.log('🚀 Starting at level:', optimalLevel, 'height:', hlsInstance.levels[optimalLevel].height);
 
         // ← БЛОКИРУЕМ 1080p для Auto режима
@@ -256,7 +236,6 @@ function runNeoPlayer(wrap, wrapIndex) {
             hlsInstance.startLevel = optimalLevel;
             hlsInstance.currentLevel = optimalLevel;
             hlsInstance.maxAutoLevel = optimalLevel;
-            hlsInstance.nextLevel = optimalLevel;
 
             if (hlsInstance.abrController) {
                 hlsInstance.abrController.minAutoLevel = optimalLevel;
@@ -266,18 +245,7 @@ function runNeoPlayer(wrap, wrapIndex) {
             console.log('🔒 Player 2: ABSOLUTE LOCK 720p');
 
         } else {
-            hlsInstance.currentLevel = -1;
             console.log('🌈 Player 1: Auto mode with 720p cap');
-
-            setTimeout(() => {
-                if (!hlsInstance || player.paused) return;
-
-                const hdIndex = hlsInstance.levels.findIndex(l => l.height === 720);
-                if (hdIndex !== -1) {
-                    console.log('⬆️ Upgrading Player 1 to 720p after warm-up');
-                    hlsInstance.currentLevel = hdIndex;
-                }
-            }, 3000);
         }
 
         manifestReady = true;
@@ -332,10 +300,18 @@ function runNeoPlayer(wrap, wrapIndex) {
         if (player.readyState >= 2) {
             tryPlay();
         } else {
-            player.addEventListener('loadeddata', () => {
+            const onLoadedData = () => {
                 console.log('📥 loadeddata fired, trying play');
                 tryPlay();
-            }, { once: true });
+            };
+
+            const onCanPlay = () => {
+                console.log('📥 canplay fired, trying play');
+                tryPlay();
+            };
+
+            player.addEventListener('loadeddata', onLoadedData, { once: true });
+            player.addEventListener('canplay', onCanPlay, { once: true });
         }
     }
 
