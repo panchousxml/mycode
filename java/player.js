@@ -219,25 +219,26 @@ function runNeoPlayer(wrap, wrapIndex) {
     function onManifestParsed() {
         console.log('📡 MANIFEST_PARSED fired');
         console.log('📦 Levels:', hlsInstance.levels);
-        
+
         const optimalLevel = findOptimalStartLevel();
         hlsInstance.startLevel = optimalLevel;
         console.log('🚀 Starting at level:', optimalLevel, 'height:', hlsInstance.levels[optimalLevel].height);
 
-        // ← ИСПРАВЛЕНО: находим 720p независимо для maxAutoLevel
+        // ← ИСПРАВЛЕНО: ЖЁСТКО блокируем 1080p для Auto режима
+        // Находим индекс 720p и устанавливаем его как потолок для ABR
         const maxAutoLevelIndex = hlsInstance.levels.findIndex(l => l.height === 720);
         if (maxAutoLevelIndex !== -1) {
             hlsInstance.maxAutoLevel = maxAutoLevelIndex;
-            console.log(`📍 maxAutoLevel set to index ${maxAutoLevelIndex} (720p) - 1080p will NOT auto-select`);
+            console.log(`📍 maxAutoLevel LOCKED to index ${maxAutoLevelIndex} (720p) - 1080p blocked for auto-select`);
         } else {
-            // Если 720p нет, ограничиваем на предпоследний уровень
+            // Fallback: если 720p нет, берём предпоследний уровень
             hlsInstance.maxAutoLevel = Math.max(0, hlsInstance.levels.length - 2);
             console.log(`📍 720p not found, maxAutoLevel set to index ${hlsInstance.maxAutoLevel}`);
         }
 
-        // Сбрасываем currentLevel на -1 (Auto режим) для плавного повышения качества
+        // ← ВАЖНО: включаем Auto режим ПОСЛЕ установки maxAutoLevel
         hlsInstance.currentLevel = -1;
-        console.log('🌈 Enabled Auto mode for smooth quality upgrade');
+        console.log('🌈 Enabled Auto mode with 720p cap (1080p only on manual select)');
 
         manifestReady = true;
         enableQuality();
