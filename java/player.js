@@ -317,19 +317,12 @@ function enableQuality() {
 
     qual.disabled = false;
 
-    // ← СТРОИМ селект с 1080p помеченной как manual only
     let html = '<option value="auto">Auto</option>';
-    
+
     hlsInstance.levels.forEach((level, idx) => {
         if (!level.height) return;
-        
-        // ← 1080p добавляем, но с пометкой
-        if (level.height === 1080) {
-            html += `<option value="${level.height}">${level.height}p (manual only)</option>`;
-            console.log(`🎬 Added 1080p to manual selection only`);
-        } else {
-            html += `<option value="${level.height}">${level.height}p</option>`;
-        }
+
+        html += `<option value="${level.height}">${level.height}p</option>`;
     });
     
     qual.innerHTML = html;
