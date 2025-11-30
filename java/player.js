@@ -146,11 +146,15 @@ function runNeoPlayer(wrap, wrapIndex) {
                 lowLatencyMode: false,
                 loader: NoRangeLoader,    // Использовать кастомный loader
 
-                // ✅ КРИТИЧНЫЕ ПАРАМЕТРЫ ДЛЯ УСКОРЕНИЯ СТАРТА:
-                maxBufferLength: 4,           // Минимальный буфер перед стартом (было: ~30 по умолчанию)
-                maxMaxBufferLength: 8,        // Максимум буфера (было: ~60 по умолчанию)
-                startFragPrefetch: true,      // Не ждём загрузки 2 сегментов, начинаем с 1
-                liveSyncDurationCount: 2,     // Минимальное отставание от края буфера (было: 3)
+                // ✅ Баланс между быстрым стартом и плавным воспроизведением:
+                maxBufferLength: 2,           // 2 сегмента ≈ 13 секунд буфера
+                maxMaxBufferLength: 4,        // Верхний предел буфера
+                startFragPrefetch: true,
+                liveSyncDurationCount: 2,
+
+                // Сглаживание адаптивного выбора качества:
+                abrBandWidthFactor: 0.8,
+                abrBandWidthUpFactor: 0.9,
             });
 
             console.log('✅ Progressive streaming отключен, используется NoRangeLoader');
