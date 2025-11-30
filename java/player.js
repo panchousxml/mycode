@@ -39,7 +39,6 @@ function runNeoPlayer(wrap, wrapIndex) {
     let qual;
     let player;
     let currentDisplayQuality = 'Auto';
-    let preTestSpeed = null; // Результат замера скорости
 
     const isNativeHls = canPlayNativeHls();
     const preview = wrap.querySelector('.neo-preview');
@@ -103,36 +102,21 @@ function runNeoPlayer(wrap, wrapIndex) {
         }
     });
 
-    async function measureNetworkSpeed() {
-        const testUrl = 'https://video.pskamelit.ru/vertolet/720p/segment_000.ts';
-        const testSize = 100000; // 100 KB тест
+    // Не делаем тест - используем скорость первого реального сегмента
+    function measureSpeedFromFirstSegment(data) {
+        if (!data.stats || !data.stats.loading) return 2.0; // Fallback
 
-        try {
-            const start = performance.now();
-            const response = await fetch(testUrl, {
-                headers: { 'Range': `bytes=0-${testSize}` }
-            });
-            await response.arrayBuffer();
-            const end = performance.now();
+        const loadTime = (data.stats.loading.end - data.stats.loading.start) / 1000;
+        const bytes = data.stats.loaded;
+        const speedMbps = (bytes * 8 / loadTime / 1000000).toFixed(2);
 
-            const loadTime = (end - start) / 1000;
-            const speedMbps = (testSize * 8 / loadTime / 1000000).toFixed(2);
-
-            console.log(`🌐 Network speed test: ${speedMbps} Mbps (${loadTime.toFixed(2)}s)`);
-            return parseFloat(speedMbps);
-        } catch (err) {
-            console.warn('⚠️ Network test failed, assuming medium speed:', err);
-            return 2.0;
-        }
+        console.log(`📊 Player 2: First segment speed: ${speedMbps} Mbps`);
+        return parseFloat(speedMbps);
     }
 
-    async function startVideo() {
+    function startVideo() {
         console.log('🔴 startVideo CALLED');
 
-        // Для второго плеера: замеряем скорость ДО старта видео
-        if (wrapIndex === 1) {
-            preTestSpeed = await measureNetworkSpeed();
-        }
         bigPlay.style.display = 'none';
         preview.style.display = 'none';
         loader.style.display = 'flex';
@@ -282,24 +266,29 @@ function runNeoPlayer(wrap, wrapIndex) {
             console.log(`📍 maxAutoLevel LOCKED to index ${maxAutoLevelIndex} (720p) - 1080p blocked for auto`);
         }
 
-        // Для второго видео: используем предварительный замер скорости
-        if (wrapIndex === 1 && preTestSpeed !== null) {
-            let targetLevel = optimalLevel; // По умолчанию 720p
+        // Для второго видео: замеряем скорость на ПЕРВОМ реальном сегменте
+        if (wrapIndex === 1) {
+            hlsInstance.currentLevel = optimalLevel; // Стартуем с 720p
 
-            if (preTestSpeed < 1.5) {
-                targetLevel = hlsInstance.levels.findIndex(l => l.height === 360);
-                console.log(`⬇️ Player 2: Slow network (${preTestSpeed} Mbps), starting with 360p`);
-            } else if (preTestSpeed < 2.5) {
-                targetLevel = hlsInstance.levels.findIndex(l => l.height === 480);
-                console.log(`➡️ Player 2: Medium network (${preTestSpeed} Mbps), starting with 480p`);
-            } else {
-                console.log(`⬆️ Player 2: Fast network (${preTestSpeed} Mbps), starting with 720p`);
-            }
+            hlsInstance.once(Hls.Events.FRAG_LOADED, (event, data) => {
+                const speedMbps = measureSpeedFromFirstSegment(data);
+                let targetLevel = optimalLevel; // По умолчанию 720p
 
-            hlsInstance.startLevel = targetLevel !== -1 ? targetLevel : optimalLevel;
-            hlsInstance.nextLevel = hlsInstance.startLevel;
-            hlsInstance.currentLevel = hlsInstance.startLevel;
-            console.log('🔒 Player 2: Quality LOCKED at', hlsInstance.levels[hlsInstance.startLevel].height + 'p');
+                if (speedMbps < 1.5) {
+                    targetLevel = hlsInstance.levels.findIndex(l => l.height === 360);
+                    console.log(`⬇️ Player 2: Slow network (${speedMbps} Mbps), switching to 360p`);
+                } else if (speedMbps < 2.5) {
+                    targetLevel = hlsInstance.levels.findIndex(l => l.height === 480);
+                    console.log(`➡️ Player 2: Medium network (${speedMbps} Mbps), switching to 480p`);
+                } else {
+                    console.log(`⬆️ Player 2: Fast network (${speedMbps} Mbps), staying at 720p`);
+                }
+
+                if (targetLevel !== -1) {
+                    hlsInstance.currentLevel = targetLevel;
+                }
+                console.log('🔒 Player 2: Quality LOCKED, no more ABR switching');
+            });
 
         } else {
             hlsInstance.currentLevel = -1;
