@@ -64,7 +64,7 @@ function runNeoPlayer(wrap, wrapIndex) {
             hls: 'https://video.pskamelit.ru/3min/master.m3u8'
         },
         1: {
-            preview: 'https://static.tildacdn.com/vide3564-3237-4635-a634-313662346231/output_compressed.mp4',
+            preview: 'https://static.tildacdn.com/vide3730-3263-4434-b961-656664323431/zatirka-vertoletom.mp4',
             hls: 'https://video.pskamelit.ru/vertolet/master.m3u8'
         }
     };
