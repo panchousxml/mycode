@@ -144,7 +144,13 @@ function runNeoPlayer(wrap, wrapIndex) {
                 progressive: false,      // Отключить progressive streaming
                 enableWorker: true,
                 lowLatencyMode: false,
-                loader: NoRangeLoader    // Использовать кастомный loader
+                loader: NoRangeLoader,    // Использовать кастомный loader
+
+                // ✅ КРИТИЧНЫЕ ПАРАМЕТРЫ ДЛЯ УСКОРЕНИЯ СТАРТА:
+                maxBufferLength: 1,           // Минимальный буфер перед стартом (было: ~30 по умолчанию)
+                maxMaxBufferLength: 2,        // Максимум буфера (было: ~60 по умолчанию)
+                startFragPrefetch: true,      // Не ждём загрузки 2 сегментов, начинаем с 1
+                liveSyncDurationCount: 2,     // Минимальное отставание от края буфера (было: 3)
             });
 
             console.log('✅ Progressive streaming отключен, используется NoRangeLoader');
@@ -254,6 +260,11 @@ function runNeoPlayer(wrap, wrapIndex) {
         optimalLevel = findOptimalStartLevel();
         hlsInstance.startLevel = optimalLevel;
         hlsInstance.nextLevel = optimalLevel;  // Принудительно устанавливаем для корректного лейбла
+        // ✅ НОВОЕ: Явно принудительно стартуем загрузку сегментов
+        if (hlsInstance.startLoad && typeof hlsInstance.startLoad === 'function') {
+            hlsInstance.startLoad();
+            console.log('✅ MANIFEST: Forcefully triggered segment loading');
+        }
         console.log('🚀 Starting at level:', optimalLevel, 'height:', hlsInstance.levels[optimalLevel].height);
 
         // ← БЛОКИРУЕМ 1080p для Auto режима
@@ -314,30 +325,25 @@ function runNeoPlayer(wrap, wrapIndex) {
         player.style.display = 'block';
         controls.style.display = 'block';
 
-        console.log('🎯 showControlsAndPlay called', {
-            readyState: player.readyState,
-            duration: player.duration,
-            networkState: player.networkState
-        });
+        console.log('🎯 showControlsAndPlay called - immediate play attempt');
 
-        const tryPlay = () => {
-            player.play()
-              .then(() => {
-                  console.log('✅ play() resolved, paused =', player.paused);
-              })
-              .catch(err => {
-                  console.error('❌ play() failed:', err);
-              });
-        };
-
-        if (player.readyState >= 2) {
-            tryPlay();
-        } else {
-            player.addEventListener('loadeddata', () => {
-                console.log('📥 loadeddata fired, trying play');
-                tryPlay();
-            }, { once: true });
-        }
+        // ✅ ИЗМЕНЕНО: Сразу пытаемся воспроизводить, БЕЗ ожидания loadeddata
+        // Браузер начнёт буферировать и воспроизводить одновременно
+        player.play()
+            .then(() => {
+                console.log('✅ PLAYBACK: play() resolved immediately - streaming started');
+            })
+            .catch(err => {
+                console.error('⚠️ PLAYBACK: play() failed at immediate attempt, will retry on loadeddata:', err.name);
+                
+                // Fallback: если браузер отказал в immediate play (редко), слушаем loadeddata
+                player.addEventListener('loadeddata', () => {
+                    console.log('📥 PLAYBACK: loadeddata fired, retry play attempt');
+                    player.play().catch(() => {
+                        console.error('❌ PLAYBACK: play() also failed on loadeddata');
+                    });
+                }, { once: true });
+            });
     }
 
     function isPreviewVisible() {
