@@ -162,11 +162,14 @@ function runNeoPlayer(wrap, wrapIndex) {
         if (!hlsInstance || !hlsInstance.levels.length) return 0;
 
         const levels = hlsInstance.levels;
-        const targetHeight = 360;  // ← ИЗМЕНЕНО С 720 НА 360
+
+        // Индивидуальная логика старта качества: второе видео (wrapIndex === 1) → 720p, остальные → 360p
+        const targetHeight = wrapIndex === 1 ? 720 : 360;  // второе видео → 720, остальное → 360
+        console.log(`🎯 Target quality for player ${wrapIndex}:`, targetHeight);
 
         let idx = levels.findIndex(l => l.height === targetHeight);
         if (idx !== -1) {
-            console.log('✅ Found 360p at index', idx);
+            console.log(`✅ Found ${targetHeight}p at index`, idx);
             return idx;
         }
 
@@ -179,11 +182,11 @@ function runNeoPlayer(wrap, wrapIndex) {
         }
 
         if (idx !== -1) {
-            console.log(`⬇️ 360p not found, using fallback: ${levels[idx].height}p at index ${idx}`);
+            console.log(`⬇️ ${targetHeight}p not found, using fallback: ${levels[idx].height}p at index ${idx}`);
             return idx;
         }
 
-        console.log('⬆️ All levels above 360p, using lowest');
+        console.log(`⬆️ All levels above ${targetHeight}p, using lowest`);
         return levels.length - 1;
     }
 
