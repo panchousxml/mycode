@@ -131,8 +131,21 @@ function runNeoPlayer(wrap, wrapIndex) {
                 debug: false,
                 enableWorker: true,
                 lowLatencyMode: false,
-                maxLoadingDelay: 4,
-                maxBufferLength: 30,
+                
+                // Буфер и загрузка
+                maxLoadingDelay: 2,
+                maxBufferLength: 60,
+                maxMaxBufferLength: 120,
+                
+                // ABR стабилизация (как в YouTube)
+                abrEwmaDefaultEstimate: 500000,
+                abrEwmaFastLive: 3.0,
+                abrEwmaSlowLive: 9.0,
+                abrBandWidthFactor: 0.8,
+                abrBandWidthUpFactor: 0.7,
+                abrMaxWithRealBitrate: false,
+                capLevelToPlayerSize: false,
+                
                 defaultAudioCodec: undefined,
                 startLevel: undefined
             });
