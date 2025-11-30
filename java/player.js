@@ -162,11 +162,11 @@ function runNeoPlayer(wrap, wrapIndex) {
         if (!hlsInstance || !hlsInstance.levels.length) return 0;
 
         const levels = hlsInstance.levels;
-        const targetHeight = 720;
+        const targetHeight = 360;  // ← ИЗМЕНЕНО С 720 НА 360
 
         let idx = levels.findIndex(l => l.height === targetHeight);
         if (idx !== -1) {
-            console.log('✅ Found 720p at index', idx);
+            console.log('✅ Found 360p at index', idx);
             return idx;
         }
 
@@ -179,11 +179,11 @@ function runNeoPlayer(wrap, wrapIndex) {
         }
 
         if (idx !== -1) {
-            console.log(`⬇️ 720p not found, using fallback: ${levels[idx].height}p at index ${idx}`);
+            console.log(`⬇️ 360p not found, using fallback: ${levels[idx].height}p at index ${idx}`);
             return idx;
         }
 
-        console.log('⬆️ All levels above 720p, using lowest');
+        console.log('⬆️ All levels above 360p, using lowest');
         return levels.length - 1;
     }
 
@@ -216,17 +216,20 @@ function runNeoPlayer(wrap, wrapIndex) {
     function onManifestParsed() {
         console.log('📡 MANIFEST_PARSED fired');
         console.log('📦 Levels:', hlsInstance.levels);
-
+        
         const optimalLevel = findOptimalStartLevel();
         hlsInstance.startLevel = optimalLevel;
         console.log('🚀 Starting at level:', optimalLevel, 'height:', hlsInstance.levels[optimalLevel].height);
 
-        // ← ПРАВИЛЬНО: ограничиваем максимальный уровень для ABR
-        // Найди индекс 720p и установи его как maxAutoLevel
+        // ← ИСПРАВЛЕНО: находим 720p независимо для maxAutoLevel
         const maxAutoLevelIndex = hlsInstance.levels.findIndex(l => l.height === 720);
         if (maxAutoLevelIndex !== -1) {
             hlsInstance.maxAutoLevel = maxAutoLevelIndex;
-            console.log(`📍 maxAutoLevel set to index ${maxAutoLevelIndex} (720p)`);
+            console.log(`📍 maxAutoLevel set to index ${maxAutoLevelIndex} (720p) - 1080p will NOT auto-select`);
+        } else {
+            // Если 720p нет, ограничиваем на предпоследний уровень
+            hlsInstance.maxAutoLevel = Math.max(0, hlsInstance.levels.length - 2);
+            console.log(`📍 720p not found, maxAutoLevel set to index ${hlsInstance.maxAutoLevel}`);
         }
 
         // Сбрасываем currentLevel на -1 (Auto режим) для плавного повышения качества
