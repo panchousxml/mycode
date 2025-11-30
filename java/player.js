@@ -160,8 +160,9 @@ function runNeoPlayer(wrap, wrapIndex) {
             hlsInstance.on(Hls.Events.LEVEL_SWITCHED, onLevelSwitched);
             // ← НОВОЕ: блокируем попытку ABR переключиться на 1080p в Auto режиме
             hlsInstance.on(Hls.Events.LEVEL_SWITCHING, (event, data) => {
+                // Блокируем 1080p только для первого плеера (второй уже защищён через maxAutoLevel)
                 // Если в Auto режиме (currentLevel === -1) и ABR пытается выбрать уровень 3 (1080p)
-                if (hlsInstance.currentLevel === -1 && data.level === 3) {
+                if (wrapIndex === 0 && hlsInstance.currentLevel === -1 && data.level === 3) {
                     console.log('🚫 BLOCKED auto-switch to 1080p (level 3), forcing 720p (level 2)');
                     hlsInstance.nextLevel = 2;  // Принудительно переключаем на 720p
                 }
