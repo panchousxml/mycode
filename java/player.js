@@ -260,6 +260,13 @@ function runNeoPlayer(wrap, wrapIndex) {
             hlsInstance.startLevel = optimalLevel;
             hlsInstance.maxAutoLevel = optimalLevel;
             hlsInstance.currentLevel = -1;  // Auto режим
+
+            // Сбросить ABR-историю (не использовать старые данные о скорости сети)
+            if (hlsInstance.abr) {
+                hlsInstance.abr.resetEwma();
+                console.log('🔄 Player 2: ABR history RESET');
+            }
+
             console.log('🚀 Player 2: Starting at 720p, Auto mode (max 720p, short video)');
 
         } else {
