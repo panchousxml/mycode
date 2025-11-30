@@ -240,9 +240,10 @@ function runNeoPlayer(wrap, wrapIndex) {
     function onManifestParsed() {
         console.log('📡 MANIFEST_PARSED fired');
         console.log('📦 Levels:', hlsInstance.levels);
-        
+
         const optimalLevel = findOptimalStartLevel();
         hlsInstance.startLevel = optimalLevel;
+        hlsInstance.nextLevel = optimalLevel;  // Принудительно устанавливаем для корректного лейбла
         console.log('🚀 Starting at level:', optimalLevel, 'height:', hlsInstance.levels[optimalLevel].height);
 
         // ← БЛОКИРУЕМ 1080p для Auto режима
