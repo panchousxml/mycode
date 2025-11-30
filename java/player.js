@@ -129,42 +129,25 @@ function runNeoPlayer(wrap, wrapIndex) {
             console.log('🎬 Starting HLS playback from:', videoData.hls);
             console.log('✅ window.Hls exists:', !!window.Hls);
             console.log('✅ Hls.isSupported():', Hls.isSupported());
-            // Отключить Range запросы — качаем файлы целиком
+            // Кастомный loader без Range запросов
+            class NoRangeLoader extends Hls.DefaultConfig.loader {
+                load(context, config, callbacks) {
+                    // Принудительно удаляем rangeStart и rangeEnd — качаем файлы целиком
+                    context.rangeStart = undefined;
+                    context.rangeEnd = undefined;
+                    super.load(context, config, callbacks);
+                }
+            }
+
             hlsInstance = new Hls({
-                debug: false,
+                backBufferLength: 90,
+                progressive: false,      // Отключить progressive streaming
                 enableWorker: true,
                 lowLatencyMode: false,
-
-                // Буфер и загрузка
-                maxLoadingDelay: 2,
-                maxBufferLength: 60,
-                maxMaxBufferLength: 120,
-                backBufferLength: 90,
-
-                // ABR стабилизация (как в YouTube)
-                abrEwmaDefaultEstimate: 500000,
-                abrEwmaFastLive: 3.0,
-                abrEwmaSlowLive: 9.0,
-                abrBandWidthFactor: 0.8,
-                abrBandWidthUpFactor: 0.7,
-                abrMaxWithRealBitrate: false,
-                capLevelToPlayerSize: false,
-
-                defaultAudioCodec: undefined,
-                startLevel: undefined,
-                xhrSetup: function(xhr, url) {
-                    const originalSetRequestHeader = xhr.setRequestHeader;
-                    xhr.setRequestHeader = function(header, value) {
-                        if (header.toLowerCase() === 'range') {
-                            console.log('🚫 Заблокирован Range заголовок для:', url.split('/').pop());
-                            return;
-                        }
-                        return originalSetRequestHeader.apply(this, arguments);
-                    };
-                }
+                loader: NoRangeLoader    // Использовать кастомный loader
             });
 
-            console.log('✅ Range запросы заблокированы через перехват setRequestHeader');
+            console.log('✅ Progressive streaming отключен, используется NoRangeLoader');
             
             hlsInstance.on(Hls.Events.MANIFEST_PARSING_STARTED, () => {
                 console.log('📡 Manifest parsing started...');
