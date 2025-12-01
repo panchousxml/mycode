@@ -217,43 +217,76 @@ function runNeoPlayer(wrap, wrapIndex) {
         updateQualityLabel();
     }
 
-    function onManifestParsed() {
-        console.log('📡 MANIFEST_PARSED fired');
-        console.log('📦 Levels:', hlsInstance.levels);
+   function onManifestParsed() {
+    console.log('📡 MANIFEST_PARSED fired');
+    console.log('📦 Levels:', hlsInstance.levels);
 
-        optimalLevel = findOptimalStartLevel();
-        hlsInstance.startLevel = optimalLevel;
-        console.log('🚀 Starting at level:', optimalLevel, 'height:', hlsInstance.levels[optimalLevel].height);
+    optimalLevel = findOptimalStartLevel();
+    hlsInstance.startLevel = optimalLevel;
+    console.log('🚀 Starting at level:', optimalLevel, 'height:', hlsInstance.levels[optimalLevel].height);
 
-        // ← БЛОКИРУЕМ 1080p для Auto режима
-        const maxAutoLevelIndex = hlsInstance.levels.findIndex(l => l.height === 720);
-        if (maxAutoLevelIndex !== -1) {
-            hlsInstance.maxAutoLevel = maxAutoLevelIndex;
-            console.log(`📍 maxAutoLevel LOCKED to index ${maxAutoLevelIndex} (720p) - 1080p blocked for auto`);
-        }
-
-        if (wrapIndex === 1) {
-            hlsInstance.startLevel = optimalLevel;
-            hlsInstance.currentLevel = optimalLevel;
-            hlsInstance.maxAutoLevel = optimalLevel;
-
-            if (hlsInstance.abrController) {
-                hlsInstance.abrController.minAutoLevel = optimalLevel;
-                hlsInstance.abrController.maxAutoLevel = optimalLevel;
-            }
-
-            console.log('🔒 Player 2: ABSOLUTE LOCK 720p');
-
-        } else {
-            console.log('🌈 Player 1: Auto mode with 720p cap');
-        }
-
-        manifestReady = true;
-        enableQuality();
-        updateQualityLabel();
-        showControlsAndPlay();
+    // ← БЛОКИРУЕМ 1080p для Auto режима
+    const maxAutoLevelIndex = hlsInstance.levels.findIndex(l => l.height === 720);
+    if (maxAutoLevelIndex !== -1) {
+        hlsInstance.maxAutoLevel = maxAutoLevelIndex;
+        console.log(`📍 maxAutoLevel LOCKED to index ${maxAutoLevelIndex} (720p) - 1080p blocked for auto`);
     }
 
+    // ← НОВОЕ: Блокировка первой смены качества на 15 сек для первого плеера
+    if (wrapIndex === 0) {
+        let startTime = Date.now();
+        const QUALITY_LOCK_TIME = 15000;
+        
+        const abrController = hlsInstance.abrController;
+        const originalNextAutoLevel = Object.getOwnPropertyDescriptor(
+            Object.getPrototypeOf(abrController), 
+            'nextAutoLevel'
+        );
+
+        Object.defineProperty(abrController, 'nextAutoLevel', {
+            get: function() {
+                const elapsed = Date.now() - startTime;
+                if (elapsed < QUALITY_LOCK_TIME) {
+                    console.log(`🔒 Quality locked for ${(QUALITY_LOCK_TIME - elapsed) / 1000 | 0}s more`);
+                    return optimalLevel;
+                }
+                return originalNextAutoLevel.get.call(this);
+            },
+            set: function(value) {
+                const elapsed = Date.now() - startTime;
+                if (elapsed < QUALITY_LOCK_TIME) {
+                    console.log(`🔒 ABR попытался изменить, но качество заблокировано`);
+                    return;
+                }
+                if (originalNextAutoLevel.set) {
+                    originalNextAutoLevel.set.call(this, value);
+                }
+            },
+            configurable: true
+        });
+
+        console.log('🌈 Player 1: Quality locked for 15 seconds');
+    }
+
+    if (wrapIndex === 1) {
+        hlsInstance.startLevel = optimalLevel;
+        hlsInstance.currentLevel = optimalLevel;
+        hlsInstance.maxAutoLevel = optimalLevel;
+
+        if (hlsInstance.abrController) {
+            hlsInstance.abrController.minAutoLevel = optimalLevel;
+            hlsInstance.abrController.maxAutoLevel = optimalLevel;
+        }
+
+        console.log('🔒 Player 2: ABSOLUTE LOCK 720p');
+
+    }
+
+    manifestReady = true;
+    enableQuality();
+    updateQualityLabel();
+    showControlsAndPlay();
+}
     function onHlsError(event, data) {
         console.error('❌ HLS ERROR:', data?.type, data?.details, data);
         if (!data || data.fatal !== true) return;
