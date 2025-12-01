@@ -1,4 +1,4 @@
-console.log('PLAYER JS BUILD', '30-11-2025 5:28 - ADAPTIVE START LEVEL 720p');
+console.log('PLAYER JS BUILD', '01-12-2025 19:00 - LOADER WITH PERCENTAGE');
 document.addEventListener("DOMContentLoaded", () => {
     requestAnimationFrame(checkWrapper);
 });
@@ -45,6 +45,16 @@ function runNeoPlayer(wrap, wrapIndex) {
     const preview = wrap.querySelector('.neo-preview');
     const bigPlay = wrap.querySelector('.neo-big-play');
     const loader = wrap.querySelector('.neo-loader');
+    
+    // ▼▼▼ НОВОЕ: Создаем элемент для текста процентов ▼▼▼
+    let loaderText = loader.querySelector('.neo-loader-text');
+    if (!loaderText) {
+        loaderText = document.createElement('div');
+        loaderText.className = 'neo-loader-text';
+        loader.appendChild(loaderText);
+    }
+    // ▲▲▲ КОНЕЦ ▲▲▲
+    
     player = wrap.querySelector('.neo-video');
     const controls = wrap.querySelector('.neo-controls');
     const btnPlay = wrap.querySelector('.neo-play');
@@ -101,16 +111,6 @@ function runNeoPlayer(wrap, wrapIndex) {
         // Для ПЕРВОГО видео (длинное)
         else {
             const pos = parseFloat(savedPos);
-            // Поскольку duration может быть еще не загружена (NaN), мы не можем точно проверить "до конца".
-            // Но мы знаем длительность первого видео (3 минуты = 180 сек).
-            // Можно сделать проще: если позиция > 170 сек (конец видео), сбрасываем.
-            // Либо, надежнее: не восстанавливаем тут, а сохраняем во временную переменную
-            // и применяем в 'loadedmetadata'.
-            
-            // ПРОСТОЙ ВАРИАНТ (предполагаем, что видео ~3 мин):
-            // Если сохранено больше 200 сек (мусор) или меньше 10 до конца...
-            // Лучше сделать проверку после загрузки метаданных:
-            
             player.addEventListener('loadedmetadata', () => {
                 const duration = player.duration;
                 const timeLeft = duration - pos;
@@ -138,8 +138,9 @@ function runNeoPlayer(wrap, wrapIndex) {
         console.log('🔴 startVideo CALLED');
 
         bigPlay.style.display = 'none';
-        preview.style.display = 'none';
+        // Превью ОСТАЕТСЯ видимым
         loader.style.display = 'flex';
+        loaderText.innerText = '0%';
         clearTimeout(pauseTimeout);
         disableQuality();
 
@@ -342,7 +343,7 @@ if (wrapIndex === 0) {
     }
 
 function showControlsAndPlay() {
-    loader.style.display = 'none';
+    // Показываем плеер и контролы, но НЕ скрываем лоадер (он скроется при старте)
     player.style.display = 'block';
     controls.style.display = 'block';
 
@@ -365,7 +366,6 @@ function showControlsAndPlay() {
             if (player.duration && isFinite(player.duration)) {
                 const remaining = player.duration - player.currentTime;
                 if (remaining < targetBuffer) {
-                    // Если осталось меньше чем цель -> цель равна остатку (минус чуть-чуть для страховки)
                     targetBuffer = Math.max(0, remaining - 0.1); 
                 }
             }
@@ -393,10 +393,20 @@ function showControlsAndPlay() {
 
                     console.log(`⏳ Buffering... ${curBuf.toFixed(2)}s / ${curTarget.toFixed(2)}s`);
 
+                    // ▼▼▼ НОВОЕ: Показываем процент ▼▼▼
+                    let percent = 0;
+                    if (curTarget > 0) {
+                        percent = Math.min(100, Math.round((curBuf / curTarget) * 100));
+                    } else {
+                        percent = 100;
+                    }
+                    loaderText.innerText = `Загрузка ${percent}%`;
+                    // ▲▲▲ КОНЕЦ ▲▲▲
+
                     if (curBuf >= curTarget || curIsEnd) {
                         clearInterval(checkBuffer);
                         console.log(`✅ Buffer ready (${curBuf.toFixed(2)}s), starting play`);
-                        loader.style.display = 'none';
+                        loaderText.innerText = 'Запуск...';
                         
                         player.play()
                             .then(() => console.log('✅ play() resolved'))
@@ -408,7 +418,7 @@ function showControlsAndPlay() {
             }
             
             // Если буфер достаточен — играем сразу
-            loader.style.display = 'none';
+            loaderText.innerText = 'Запуск...';
             player.play()
                 .then(() => console.log('✅ play() resolved'))
                 .catch(err => console.error('❌ play() failed:', err));
@@ -507,6 +517,13 @@ function enableQuality() {
         if (player.duration && !isDragging) {
             fill.style.width = (player.currentTime / player.duration * 100) + '%';
         }
+        
+        // ▼▼▼ НОВОЕ: Убираем лоадер и превью когда видео пошло ▼▼▼
+        if (player.currentTime > 0.1 && !player.paused && preview.style.display !== 'none') {
+            loader.style.display = 'none';
+            preview.style.display = 'none';
+        }
+        // ▲▲▲ КОНЕЦ ▲▲▲
     });
 
     player.addEventListener('pause', () => {
