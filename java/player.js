@@ -679,6 +679,7 @@ function runNeoPlayer(wrap, wrapIndex) {
     }
 
     function restartFromEndIfNeeded() {
+        // если видео закончилось или почти в конце — считаем, что нужен повтор
         if (player.ended || (player.duration && player.currentTime >= player.duration - 0.1)) {
             player.currentTime = 0;
 
