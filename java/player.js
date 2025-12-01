@@ -327,6 +327,8 @@ class NeoPlayer {
         console.log('🔴 startVideo CALLED');
 
         this.el.bigPlay.style.display = 'none';
+        this.el.preview.style.display = 'none';
+        this.el.player.style.display = 'block';
         this.loader.show(true);
         clearTimeout(this.pauseTimeout);
         this._disableQuality();
@@ -527,17 +529,37 @@ class NeoPlayer {
 
     _waitForBuffer(targetBuffer) {
         const player = this.el.player;
+        let curTarget = targetBuffer;
 
-        this.loader.runBufferProgress(
-            () => Utils.getBuffered(player),
-            targetBuffer,
-            () => {
+        this.loader.stopInterval();
+
+        const updateProgress = () => {
+            const buf = Utils.getBuffered(player);
+
+            if (player.duration && isFinite(player.duration)) {
+                const remaining = player.duration - player.currentTime;
+                if (remaining < curTarget) {
+                    curTarget = Math.max(0, remaining - 0.1);
+                }
+            }
+
+            const pct = curTarget > 0 ? Math.min(100, Math.round(buf / curTarget * 100)) : 100;
+            this.loader.setText(`Загрузка ${Math.max(5, pct)}%`);
+
+            const isEnd = player.duration && (player.currentTime + buf >= player.duration - 0.2);
+
+            if (buf >= curTarget || isEnd) {
+                this.loader.stopInterval();
+                this.loader.setText('100%');
                 console.log('✅ Buffer ready, starting play');
                 player.play()
                     .then(() => this.loader.hide())
                     .catch(err => console.error('❌ play() failed:', err));
             }
-        );
+        };
+
+        updateProgress();
+        this.loader.interval = setInterval(updateProgress, 500);
     }
 
     // ═══════════════════════════════════════════════════════════════
