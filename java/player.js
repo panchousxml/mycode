@@ -1,4 +1,4 @@
-console.log('PLAYER JS BUILD', '30-11-2025 5:28 - ADAPTIVE START LEVEL 720p');
+console.log('PLAYER JS BUILD', '01-12-2025 17:15');
 document.addEventListener("DOMContentLoaded", () => {
     requestAnimationFrame(checkWrapper);
 });
@@ -138,8 +138,8 @@ function runNeoPlayer(wrap, wrapIndex) {
         console.log('🔴 startVideo CALLED');
 
         bigPlay.style.display = 'none';
-        preview.style.display = 'none';
         loader.style.display = 'flex';
+        loaderText.innerText = '0%'; // Сброс процентов
         clearTimeout(pauseTimeout);
         disableQuality();
 
@@ -391,12 +391,31 @@ function showControlsAndPlay() {
                     
                     const curIsEnd = player.duration && (player.currentTime + curBuf >= player.duration - 0.2);
 
-                    console.log(`⏳ Buffering... ${curBuf.toFixed(2)}s / ${curTarget.toFixed(2)}s`);
+                     console.log(`⏳ Buffering... ${curBuf.toFixed(2)}s / ${curTarget.toFixed(2)}s`);
+
+                    // ▼▼▼ НОВОЕ: Считаем и показываем проценты ▼▼▼
+                    let percent = 0;
+                    if (curTarget > 0) {
+                        // Считаем процент от текущего буфера к целевому
+                        percent = Math.min(100, Math.round((curBuf / curTarget) * 100));
+                    } else {
+                        percent = 100; // Если цель 0, то сразу 100%
+                    }
+                    
+                    if (loaderText) {
+                        loaderText.innerText = `Загрузка ${percent}%`;
+                    }
+                    // ▲▲▲ КОНЕЦ НОВОГО ▲▲▲
 
                     if (curBuf >= curTarget || curIsEnd) {
                         clearInterval(checkBuffer);
                         console.log(`✅ Buffer ready (${curBuf.toFixed(2)}s), starting play`);
-                        loader.style.display = 'none';
+                        
+                        if (loaderText) loaderText.innerText = 'Запуск...';
+                        
+                        // ВАЖНО: Мы НЕ скрываем лоадер здесь (loader.style.display = 'none'), 
+                        // чтобы не было мигания черного экрана.
+                        // Он скроется сам по событию 'playing' или 'timeupdate'.
                         
                         player.play()
                             .then(() => console.log('✅ play() resolved'))
@@ -408,7 +427,8 @@ function showControlsAndPlay() {
             }
             
             // Если буфер достаточен — играем сразу
-            loader.style.display = 'none';
+            if (loaderText) loaderText.innerText = 'Запуск...';
+            // Здесь тоже не скрываем лоадер вручную, ждем старта кадров
             player.play()
                 .then(() => console.log('✅ play() resolved'))
                 .catch(err => console.error('❌ play() failed:', err));
