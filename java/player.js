@@ -348,6 +348,44 @@ if (wrapIndex === 0) {
 
     function onHlsError(event, data) {
         console.error('❌ HLS ERROR:', data?.type, data?.details, data);
+        
+        // ▼▼▼ НОВОЕ: Показываем спиннер при stall ▼▼▼
+        if (data?.type === 'mediaError' && (data?.details === 'bufferStalledError' || data?.details === 'bufferNudgeOnStall')) {
+            console.log('⚠️ Buffer stall detected, showing loader');
+            loader.style.display = 'flex';
+            loaderText.innerText = 'Загрузка...';
+            
+            // Медленно растущий фейк-прогресс
+            let stallProgress = 10;
+            const stallProgressInterval = setInterval(() => {
+                if (stallProgress < 90) {
+                    stallProgress += Math.random() * 5;
+                    stallProgress = Math.min(90, stallProgress);
+                    loaderText.innerText = `Загрузка ${Math.round(stallProgress)}%`;
+                }
+            }, 400);
+            
+            // Очищаем интервал через 15 сек (на случай если зависнет)
+            setTimeout(() => {
+                clearInterval(stallProgressInterval);
+            }, 15000);
+            
+            // Слушаем когда буфер восстановился
+            const onCanPlay = () => {
+                clearInterval(stallProgressInterval);
+                loader.style.display = 'none';
+                console.log('✅ Buffer recovered');
+                player.removeEventListener('canplay', onCanPlay);
+            };
+            player.addEventListener('canplay', onCanPlay);
+            
+            // Если не fatal - пытаемся восстановиться
+            if (!data || data.fatal !== true) {
+                return;
+            }
+        }
+        // ▲▲▲ КОНЕЦ ▲▲▲
+        
         if (!data || data.fatal !== true) return;
         switch (data.type) {
             case Hls.ErrorTypes.NETWORK_ERROR:
@@ -527,20 +565,33 @@ function enableQuality() {
         const wasPaused = player.paused;
         const t = player.currentTime;
 
-        // ▼▼▼ НОВОЕ: Показываем лоадер при переключении ▼▼▼
+        // ▼▼▼ НОВОЕ: Показываем лоадер с прогрессом ▼▼▼
         loader.style.display = 'flex';
-        loaderText.innerText = 'Переключение...';
+        loaderText.innerText = '5%'; // Стартуем с 5%
+        let qualitySwitchProgress = 5;
+        
+        // Фейковый прогресс, который растет медленно
+        const fakeProgressInterval = setInterval(() => {
+            if (qualitySwitchProgress < 95) {
+                qualitySwitchProgress += Math.random() * 8; // Random прирост 0-8%
+                qualitySwitchProgress = Math.min(95, qualitySwitchProgress);
+                loaderText.innerText = `${Math.round(qualitySwitchProgress)}%`;
+            }
+        }, 300);
         // ▲▲▲ КОНЕЦ ▲▲▲
 
         hlsInstance.currentLevel = levelIndex;
 
         const onFragChanged = () => {
             console.log("📌 Fragment changed, restoring position:", t);
-            player.currentTime = t;
             
-            // ▼▼▼ НОВОЕ: Скрываем лоадер когда фрагмент загрузился ▼▼▼
-            loader.style.display = 'none';
+            // ▼▼▼ НОВОЕ: Останавливаем фейк-прогресс ▼▼▼
+            clearInterval(fakeProgressInterval);
+            loaderText.innerText = '100%';
             // ▲▲▲ КОНЕЦ ▲▲▲
+            
+            player.currentTime = t;
+            loader.style.display = 'none';
             
             if (!wasPaused) {
                 player.play().catch(err => {
