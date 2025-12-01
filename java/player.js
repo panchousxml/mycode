@@ -1,36 +1,33 @@
-console.log('PLAYER JS BUILD', '01-12-2025 18:00 - SAFETY FIX');
+console.log('PLAYER JS BUILD', '01-12-2025 18:10 - FINAL FIX');
 
 document.addEventListener("DOMContentLoaded", () => {
-    requestAnimationFrame(checkWrapper);
+    // Запускаем поиск плееров сразу
+    checkWrapper();
 });
 
 function checkWrapper() {
     const wrappers = document.querySelectorAll('.neo-player-wrapper');
-    if (!wrappers.length) {
-        return requestAnimationFrame(checkWrapper);
+    if (wrappers.length > 0) {
+        console.log('✅ Wrappers found:', wrappers.length);
+        initNeoPlayer(wrappers);
+    } else {
+        // Если не нашли, пробуем еще немного (Тильда иногда тупит)
+        requestAnimationFrame(checkWrapper);
     }
-    requestAnimationFrame(() => checkPlayerReady(wrappers));
-}
-
-function checkPlayerReady(wrappers) {
-    const player = wrappers[0].querySelector('video');
-    if (!player) {
-        return requestAnimationFrame(() => checkPlayerReady(wrappers));
-    }
-
-    const style = window.getComputedStyle(player);
-    if (style.display === "none" || style.visibility === "hidden" || style.opacity === "0") {
-        return requestAnimationFrame(() => checkPlayerReady(wrappers));
-    }
-
-    initNeoPlayer(wrappers);
 }
 
 function initNeoPlayer(wrappers) {
-    wrappers.forEach((wrap, index) => runNeoPlayer(wrap, index));
+    wrappers.forEach((wrap, index) => {
+        // Проверка чтобы не инициализировать дважды
+        if (wrap.dataset.neoInited) return;
+        wrap.dataset.neoInited = "true";
+        runNeoPlayer(wrap, index);
+    });
 }
 
 function runNeoPlayer(wrap, wrapIndex) {
+    console.log(`🔧 Initializing Player ${wrapIndex}`);
+    
     let hlsInstance = null;
     let manifestReady = false;
     let qual;
@@ -38,27 +35,40 @@ function runNeoPlayer(wrap, wrapIndex) {
     let currentDisplayQuality = 'Auto';
     let optimalLevel = 0;
 
-    const isNativeHls = canPlayNativeHls();
     const preview = wrap.querySelector('.neo-preview');
     const bigPlay = wrap.querySelector('.neo-big-play');
     
-    // ▼▼▼ ИСПРАВЛЕНИЕ: БЕЗОПАСНОЕ СОЗДАНИЕ ЛОАДЕРА ▼▼▼
+    // 1. ГАРАНТИРОВАННОЕ СОЗДАНИЕ ЛОАДЕРА (С ИНЛАЙН СТИЛЯМИ)
     let loader = wrap.querySelector('.neo-loader');
-    // Если лоадера нет в HTML - создаем его сами
     if (!loader) {
         loader = document.createElement('div');
         loader.className = 'neo-loader';
+        // Принудительные стили, чтобы работало даже без CSS файла
+        loader.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);display:none;flex-direction:column;align-items:center;justify-content:center;z-index:20;';
         wrap.appendChild(loader);
     }
 
-    // Создаем текст процентов
     let loaderText = loader.querySelector('.neo-loader-text');
     if (!loaderText) {
         loaderText = document.createElement('div');
         loaderText.className = 'neo-loader-text';
+        loaderText.style.cssText = 'color:#fff;font-family:sans-serif;font-size:16px;font-weight:bold;margin-top:15px;';
         loader.appendChild(loaderText);
     }
-    // ▲▲▲ КОНЕЦ ИСПРАВЛЕНИЯ ▲▲▲
+    // Добавим крутилку если её нет
+    if (!loader.querySelector('.neo-loader-bar')) {
+        const spinner = document.createElement('div');
+        spinner.className = 'neo-loader-bar';
+        spinner.style.cssText = 'width:40px;height:40px;border:4px solid rgba(255,255,255,0.3);border-top:4px solid #fff;border-radius:50%;animation:spin 1s linear infinite;';
+        // Добавляем анимацию спиннера через JS если CSS нет
+        if (!document.getElementById('neo-spinner-style')) {
+            const style = document.createElement('style');
+            style.id = 'neo-spinner-style';
+            style.innerHTML = '@keyframes spin { to { transform: rotate(360deg); } } .neo-loader-bar { animation: spin 1s linear infinite; }';
+            document.head.appendChild(style);
+        }
+        loader.insertBefore(spinner, loaderText);
+    }
 
     player = wrap.querySelector('.neo-video');
     const controls = wrap.querySelector('.neo-controls');
@@ -73,6 +83,9 @@ function runNeoPlayer(wrap, wrapIndex) {
     const bar = wrap.querySelector('.neo-progress');
     const fill = wrap.querySelector('.neo-progress-filled');
 
+    // Проверка критических элементов
+    if (!player) { console.error('❌ Critical: No video element found in wrap', wrapIndex); return; }
+
     const videosData = {
         0: {
             preview: 'https://static.tildacdn.com/vide6364-3939-4130-b261-383838353831/output_small.mp4',
@@ -85,19 +98,24 @@ function runNeoPlayer(wrap, wrapIndex) {
     };
 
     const videoData = videosData[wrapIndex];
+    if (!videoData) { console.error('❌ No video data for index', wrapIndex); return; }
+
     let isDragging = false;
     let pauseTimeout = null;
     let previewLoaded = false;
 
+    // Загрузка превью
     const previewObserver = new IntersectionObserver((entries) => {
         if (entries[0].isIntersecting && !previewLoaded) {
+            console.log('👁️ Preview visible, loading source...');
             previewLoaded = true;
             if (preview) {
                 preview.src = videoData.preview;
                 preview.autoplay = true;
                 preview.muted = true;
                 preview.loop = true;
-                preview.play().catch(() => {});
+                // Обработка ошибки автоплея превью
+                preview.play().catch(e => console.log('⚠️ Preview autoplay blocked', e));
             }
             previewObserver.unobserve(wrap);
         }
@@ -105,31 +123,39 @@ function runNeoPlayer(wrap, wrapIndex) {
 
     previewObserver.observe(wrap);
     
+    // Начальное состояние
     if (preview) preview.style.display = 'block';
     if (bigPlay) bigPlay.style.display = 'flex';
-    if (player) player.style.display = 'none';
+    player.style.display = 'none';
     if (controls) controls.style.display = 'none';
     disableQuality();
 
-    const savedPos = localStorage.getItem('neo_pos_' + wrapIndex);
-    if (savedPos) {
-        if (wrapIndex === 1) {
-            console.log('🔄 Player 2: Short video, position reset to start');
-            player.currentTime = 0;
-        } else {
-            const pos = parseFloat(savedPos);
-            player.addEventListener('loadedmetadata', () => {
-                if (player.duration && (player.duration - pos) < 10) {
-                    player.currentTime = 0;
-                } else {
-                    player.currentTime = pos;
-                }
-            }, { once: true });
+    // Логика сохранения/восстановления
+    try {
+        const savedPos = localStorage.getItem('neo_pos_' + wrapIndex);
+        if (savedPos) {
+            if (wrapIndex === 1) {
+                console.log('🔄 Player 2: Reset to start');
+                player.currentTime = 0;
+            } else {
+                const pos = parseFloat(savedPos);
+                player.addEventListener('loadedmetadata', () => {
+                    if (player.duration && (player.duration - pos) < 10) {
+                        player.currentTime = 0;
+                    } else {
+                        player.currentTime = pos;
+                    }
+                }, { once: true });
+            }
         }
-    }
+    } catch (e) { console.error('LocalStorage error:', e); }
 
-    if (bigPlay) bigPlay.addEventListener('click', startVideo);
-    if (preview) preview.addEventListener('click', startVideo);
+    // Навешиваем события клика
+    const onPlayClick = () => startVideo();
+    
+    if (bigPlay) bigPlay.addEventListener('click', onPlayClick);
+    if (preview) preview.addEventListener('click', onPlayClick);
+    // Клик по обертке, если видно превью
     wrap.addEventListener('click', (e) => {
         if (e.target === wrap && isPreviewVisible()) {
             startVideo();
@@ -140,10 +166,11 @@ function runNeoPlayer(wrap, wrapIndex) {
         console.log('🔴 startVideo CALLED');
 
         if (bigPlay) bigPlay.style.display = 'none';
-        // ПРЕВЬЮ НЕ СКРЫВАЕМ СРАЗУ!
         
+        // Показываем лоадер
         loader.style.display = 'flex';
         loaderText.innerText = '0%';
+        
         clearTimeout(pauseTimeout);
         disableQuality();
 
@@ -155,12 +182,7 @@ function runNeoPlayer(wrap, wrapIndex) {
 
         player.removeAttribute('src');
 
-        if (isNativeHls) {
-            console.log('📱 Using native HLS');
-            player.src = videoData.hls;
-            player.addEventListener('loadeddata', showControlsAndPlay, { once: true });
-            player.load();
-        } else if (window.Hls && Hls.isSupported()) {
+        if (window.Hls && Hls.isSupported()) {
             hlsInstance = new Hls({
                 backBufferLength: 20,
                 progressive: false,
@@ -173,22 +195,26 @@ function runNeoPlayer(wrap, wrapIndex) {
             hlsInstance.on(Hls.Events.LEVEL_SWITCHED, onLevelSwitched);
             hlsInstance.loadSource(videoData.hls);
             hlsInstance.attachMedia(player);
+        } else if (player.canPlayType('application/vnd.apple.mpegurl')) {
+            // Для Safari (Native HLS)
+            console.log('📱 Using native HLS');
+            player.src = videoData.hls;
+            player.addEventListener('loadeddata', showControlsAndPlay, { once: true });
+            player.load();
         } else {
             console.log('❌ HLS not supported!');
             loader.style.display = 'none';
-            bigPlay.style.display = 'flex';
-            preview.style.display = 'block';
+            if (bigPlay) bigPlay.style.display = 'flex';
         }
     }
 
+    // Вспомогательные функции HLS
     function findOptimalStartLevel() {
         if (!hlsInstance || !hlsInstance.levels.length) return 0;
         const levels = hlsInstance.levels;
         const targetHeight = wrapIndex === 1 ? 720 : 360;
-        
         let idx = levels.findIndex(l => l.height === targetHeight);
         if (idx !== -1) return idx;
-
         for (let i = levels.length - 1; i >= 0; i--) {
             if (levels[i].height < targetHeight) return i;
         }
@@ -203,49 +229,35 @@ function runNeoPlayer(wrap, wrapIndex) {
             const level = hlsInstance.levels[currentLevel];
             display = level ? `${level.height}p` : 'Auto';
         } else {
-            const nextLevel = hlsInstance.nextLevel;
-             const level = nextLevel !== -1 ? hlsInstance.levels[nextLevel] : hlsInstance.levels[0];
+             const level = hlsInstance.levels[hlsInstance.nextLevel] || hlsInstance.levels[0];
              display = level ? `${level.height}p` : 'Auto';
         }
         const firstOption = qual.querySelector('option[value="auto"]');
         if (firstOption) firstOption.text = `Auto (${display})`;
     }
 
-    function onLevelSwitched() {
-        updateQualityLabel();
-    }
+    function onLevelSwitched() { updateQualityLabel(); }
 
     function onManifestParsed() {
+        console.log('📡 Manifest parsed');
         optimalLevel = findOptimalStartLevel();
         hlsInstance.startLevel = optimalLevel;
 
         const maxAutoLevelIndex = hlsInstance.levels.findIndex(l => l.height === 720);
-        if (maxAutoLevelIndex !== -1) {
-            hlsInstance.maxAutoLevel = maxAutoLevelIndex;
-        }
+        if (maxAutoLevelIndex !== -1) hlsInstance.maxAutoLevel = maxAutoLevelIndex;
 
         if (wrapIndex === 0) {
             const MIN_BUFFER_FOR_UPGRADE = 8;
             const abrController = hlsInstance.abrController;
-            const originalNextAutoLevel = Object.getOwnPropertyDescriptor(
-                Object.getPrototypeOf(abrController), 
-                'nextAutoLevel'
-            );
-
+            const originalNextAutoLevel = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(abrController), 'nextAutoLevel');
             Object.defineProperty(abrController, 'nextAutoLevel', {
                 get: function() {
                     const current = originalNextAutoLevel.get.call(this);
-                    const buffered = player.buffered.length > 0 
-                        ? player.buffered.end(player.buffered.length - 1) - player.currentTime 
-                        : 0;
-                    if (buffered < MIN_BUFFER_FOR_UPGRADE && current > optimalLevel) {
-                        return optimalLevel;
-                    }
+                    const buffered = player.buffered.length > 0 ? player.buffered.end(player.buffered.length - 1) - player.currentTime : 0;
+                    if (buffered < MIN_BUFFER_FOR_UPGRADE && current > optimalLevel) return optimalLevel;
                     return current;
                 },
-                set: function(value) {
-                    if (originalNextAutoLevel.set) originalNextAutoLevel.set.call(this, value);
-                },
+                set: function(value) { if (originalNextAutoLevel.set) originalNextAutoLevel.set.call(this, value); },
                 configurable: true
             });
         }
@@ -254,10 +266,6 @@ function runNeoPlayer(wrap, wrapIndex) {
             hlsInstance.startLevel = optimalLevel;
             hlsInstance.currentLevel = optimalLevel;
             hlsInstance.maxAutoLevel = optimalLevel;
-            if (hlsInstance.abrController) {
-                hlsInstance.abrController.minAutoLevel = optimalLevel;
-                hlsInstance.abrController.maxAutoLevel = optimalLevel;
-            }
         }
 
         manifestReady = true;
@@ -268,85 +276,55 @@ function runNeoPlayer(wrap, wrapIndex) {
 
     function onHlsError(event, data) {
         if (!data || data.fatal !== true) return;
-        switch (data.type) {
-            case Hls.ErrorTypes.NETWORK_ERROR:
-                hlsInstance && hlsInstance.startLoad();
-                break;
-            case Hls.ErrorTypes.MEDIA_ERROR:
-                hlsInstance && hlsInstance.recoverMediaError();
-                break;
-            default:
-                if (hlsInstance) {
-                    hlsInstance.destroy();
-                    hlsInstance = null;
-                }
-                break;
-        }
+        if (data.type === Hls.ErrorTypes.NETWORK_ERROR) hlsInstance.startLoad();
+        else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) hlsInstance.recoverMediaError();
+        else hlsInstance.destroy();
     }
 
+    // Логика буферизации и скрытия лоадера
     function showControlsAndPlay() {
-        if (player) player.style.display = 'block';
+        player.style.display = 'block';
         if (controls) controls.style.display = 'block';
 
         const tryPlay = () => {
-            const buffered = player.buffered.length > 0 
-                ? player.buffered.end(player.buffered.length - 1) - player.currentTime 
-                : 0;
-            
+            const buffered = player.buffered.length > 0 ? player.buffered.end(player.buffered.length - 1) - player.currentTime : 0;
             let targetBuffer = (wrapIndex === 1) ? 4 : 7;
-            
             if (player.duration && isFinite(player.duration)) {
                 const remaining = player.duration - player.currentTime;
-                if (remaining < targetBuffer) {
-                    targetBuffer = Math.max(0, remaining - 0.1); 
-                }
+                if (remaining < targetBuffer) targetBuffer = Math.max(0, remaining - 0.1); 
             }
 
             const isEndBuffered = player.duration && (player.currentTime + buffered >= player.duration - 0.2);
 
             if (buffered < targetBuffer && !isEndBuffered) {
                 loader.style.display = 'flex';
-                
                 const checkBuffer = setInterval(() => {
-                    const curBuf = player.buffered.length > 0 
-                        ? player.buffered.end(player.buffered.length - 1) - player.currentTime 
-                        : 0;
-                    
+                    const curBuf = player.buffered.length > 0 ? player.buffered.end(player.buffered.length - 1) - player.currentTime : 0;
                     let curTarget = targetBuffer;
                     if (player.duration && (player.duration - player.currentTime) < curTarget) {
                         curTarget = Math.max(0, (player.duration - player.currentTime) - 0.1);
                     }
                     
-                    let percent = 0;
-                    if (curTarget > 0) {
-                        percent = Math.min(100, Math.round((curBuf / curTarget) * 100));
-                    } else {
-                        percent = 100;
-                    }
-                    
-                    if (loaderText) loaderText.innerText = `Загрузка ${percent}%`;
+                    let percent = curTarget > 0 ? Math.min(100, Math.round((curBuf / curTarget) * 100)) : 100;
+                    loaderText.innerText = `Загрузка ${percent}%`;
 
                     const curIsEnd = player.duration && (player.currentTime + curBuf >= player.duration - 0.2);
 
                     if (curBuf >= curTarget || curIsEnd) {
                         clearInterval(checkBuffer);
-                        if (loaderText) loaderText.innerText = 'Запуск...';
+                        loaderText.innerText = 'Запуск...';
                         player.play().catch(err => console.error("❌ Play failed:", err));
                     }
                 }, 500);
-                
                 return;
             }
             
-            if (loaderText) loaderText.innerText = 'Запуск...';
+            loaderText.innerText = 'Запуск...';
             player.play().catch(err => console.error("❌ Play failed:", err));
         };
 
-        if (player.readyState >= 2) {
-            tryPlay();
-        } else {
-            player.addEventListener('canplay', tryPlay, { once: true });
-        }
+        if (player.readyState >= 2) tryPlay();
+        else player.addEventListener('canplay', tryPlay, { once: true });
     }
 
     function isPreviewVisible() {
@@ -354,20 +332,14 @@ function runNeoPlayer(wrap, wrapIndex) {
     }
 
     function disableQuality() {
-        if (qual) {
-            qual.disabled = true;
-            qual.onchange = null;
-        }
+        if (qual) { qual.disabled = true; qual.onchange = null; }
     }
 
     function enableQuality() {
         if (!qual || !hlsInstance || !manifestReady) return;
         qual.disabled = false;
         let html = '<option value="auto">Auto</option>';
-        hlsInstance.levels.forEach((level, idx) => {
-            if (!level.height) return;
-            html += `<option value="${level.height}">${level.height}p</option>`;
-        });
+        hlsInstance.levels.forEach(l => { if(l.height) html += `<option value="${l.height}">${l.height}p</option>`; });
         qual.innerHTML = html;
         qual.onchange = () => handleQualityChange();
     }
@@ -381,13 +353,11 @@ function runNeoPlayer(wrap, wrapIndex) {
             return;
         }
         const height = parseInt(value, 10);
-        const levelIndex = hlsInstance.levels.findIndex(level => level.height === height);
+        const levelIndex = hlsInstance.levels.findIndex(l => l.height === height);
         if (levelIndex === -1) return;
-
         const wasPaused = player.paused;
         const t = player.currentTime;
         hlsInstance.currentLevel = levelIndex;
-        
         const onFragChanged = () => {
             player.currentTime = t;
             if (!wasPaused) player.play().catch(() => {});
@@ -396,19 +366,14 @@ function runNeoPlayer(wrap, wrapIndex) {
         hlsInstance.on(Hls.Events.FRAG_CHANGED, onFragChanged);
     }
 
+    // Обработчики UI плеера
     player.addEventListener('timeupdate', () => {
-        if (wrapIndex === 1) {
-            localStorage.removeItem('neo_pos_' + wrapIndex);
-        } else if (player.duration) {
-             if ((player.duration - player.currentTime) < 10) {
-                 localStorage.removeItem('neo_pos_' + wrapIndex);
-             } else {
-                 localStorage.setItem('neo_pos_' + wrapIndex, player.currentTime);
-             }
+        if (wrapIndex === 1) localStorage.removeItem('neo_pos_' + wrapIndex);
+        else if (player.duration) {
+             if ((player.duration - player.currentTime) < 10) localStorage.removeItem('neo_pos_' + wrapIndex);
+             else localStorage.setItem('neo_pos_' + wrapIndex, player.currentTime);
         }
-        if (player.duration && !isDragging) {
-            fill.style.width = (player.currentTime / player.duration * 100) + '%';
-        }
+        if (player.duration && !isDragging) fill.style.width = (player.currentTime / player.duration * 100) + '%';
         
         if (player.currentTime > 0.1 && !player.paused && preview && preview.style.display !== 'none') {
              loader.style.display = 'none';
@@ -456,135 +421,29 @@ function runNeoPlayer(wrap, wrapIndex) {
     }
 
     function togglePlay() {
-        if (player.paused) {
-            player.play();
-        } else {
-            player.pause();
-        }
+        if (player.paused) player.play(); else player.pause();
     }
 
     if (btnPlay) btnPlay.onclick = togglePlay;
     player.onclick = togglePlay;
-    player.addEventListener('touchend', (e) => {
-        e.preventDefault();
-        togglePlay();
-    });
-
+    player.addEventListener('touchend', (e) => { e.preventDefault(); togglePlay(); });
     player.onplay = () => setPlayIcon(false);
     player.onpause = () => setPlayIcon(true);
 
     if (vol) vol.oninput = () => player.volume = vol.value;
     if (speed) speed.onchange = () => player.playbackRate = parseFloat(speed.value);
-
     if (btnFull) {
         btnFull.onclick = () => {
             const isFullscreen = document.fullscreenElement || document.webkitFullscreenElement;
             if (!isFullscreen) {
                 setFullscreenIcon(true);
-                if (player.webkitEnterFullscreen) {
-                    player.webkitEnterFullscreen();
-                } else if (wrap.requestFullscreen) {
-                    wrap.requestFullscreen().catch(() => {});
-                }
+                if (player.webkitEnterFullscreen) player.webkitEnterFullscreen();
+                else if (wrap.requestFullscreen) wrap.requestFullscreen().catch(() => {});
             } else {
                 setFullscreenIcon(false);
-                if (document.exitFullscreen) {
-                    document.exitFullscreen();
-                }
+                if (document.exitFullscreen) document.exitFullscreen();
             }
         };
     }
-
     if (btnPip) {
-        btnPip.onclick = async () => {
-            try {
-                if (document.pictureInPictureElement) await document.exitPictureInPicture();
-                else await player.requestPictureInPicture();
-            } catch (err) {
-                console.log('PiP error:', err);
-            }
-        };
-        player.addEventListener('enterpictureinpicture', () => {
-            btnPip.style.opacity = '0.8';
-            btnPip.style.background = 'rgba(100, 200, 255, 0.3)';
-        });
-        player.addEventListener('leavepictureinpicture', () => {
-            btnPip.style.opacity = '1';
-            btnPip.style.background = '';
-        });
-    }
-
-    player.addEventListener('contextmenu', (e) => {
-        e.preventDefault();
-        return false;
-    });
-    if (preview) {
-        preview.addEventListener('contextmenu', (e) => {
-            e.preventDefault();
-            return false;
-        });
-    }
-
-    function updateSeekBar(e) {
-        const rect = bar.getBoundingClientRect();
-        const clientX = e.clientX || (e.touches ? e.touches[0].clientX : 0);
-        const x = clientX - rect.left;
-        const percent = Math.max(0, Math.min(1, x / rect.width));
-        if (player.duration) {
-            player.currentTime = percent * player.duration;
-            fill.style.width = (percent * 100) + '%';
-        }
-    }
-
-    bar.addEventListener('click', updateSeekBar);
-    bar.addEventListener('mousedown', (e) => {
-        isDragging = true;
-        bar.classList.add('neo-active');
-        clearTimeout(pauseTimeout);
-        player.pause();
-        updateSeekBar(e);
-    });
-    document.addEventListener('mousemove', (e) => {
-        if (isDragging) updateSeekBar(e);
-    });
-    document.addEventListener('mouseup', () => {
-        if (isDragging) {
-            isDragging = false;
-            bar.classList.remove('neo-active');
-            player.play();
-        }
-    });
-    bar.addEventListener('touchstart', (e) => {
-        isDragging = true;
-        bar.classList.add('neo-active');
-        clearTimeout(pauseTimeout);
-        player.pause();
-        updateSeekBar(e);
-    });
-    document.addEventListener('touchmove', (e) => {
-        if (isDragging) updateSeekBar(e);
-    });
-    document.addEventListener('touchend', () => {
-        if (isDragging) {
-            isDragging = false;
-            bar.classList.remove('neo-active');
-            player.play();
-        }
-    });
-
-    let controlsTimeout;
-    function showControls() {
-        controls.style.opacity = '1';
-        clearTimeout(controlsTimeout);
-        controlsTimeout = setTimeout(() => {
-            if (!player.paused) controls.style.opacity = '0';
-        }, 3000);
-    }
-    wrap.addEventListener('touchstart', showControls);
-    wrap.addEventListener('mousemove', showControls);
-}
-
-function canPlayNativeHls() {
-    return false;
-}
-console.log("🚀 BUILD WITH ADAPTIVE START LEVEL 720p");
+        btnPip.onclick = async ()
