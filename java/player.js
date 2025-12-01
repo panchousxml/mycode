@@ -708,19 +708,21 @@ function runNeoPlayer(wrap, wrapIndex) {
             replay.style.display = 'none';
         }
 
-        if (player.duration && !player.paused) {
-            const timeLeft = player.duration - player.currentTime;
-            if (timeLeft <= 1 && replay && replay.style.display !== 'flex') {
-                replay.style.display = 'flex';
+        if (wrapIndex === 0) {
+            if (player.duration && !player.paused) {
+                const timeLeft = player.duration - player.currentTime;
+                if (timeLeft <= 1 && replay && replay.style.display !== 'flex') {
+                    replay.style.display = 'flex';
+                }
             }
-        }
 
-        if (player.duration &&
-            player.currentTime < player.duration - 1 &&
-            replay &&
-            replay.style.display === 'flex' &&
-            !player.ended) {
-            replay.style.display = 'none';
+            if (player.duration &&
+                player.currentTime < player.duration - 1 &&
+                replay &&
+                replay.style.display === 'flex' &&
+                !player.ended) {
+                replay.style.display = 'none';
+            }
         }
     });
 
