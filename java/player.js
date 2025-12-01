@@ -44,6 +44,8 @@ function runNeoPlayer(wrap, wrapIndex) {
     const isNativeHls = canPlayNativeHls();
     const preview = wrap.querySelector('.neo-preview');
     const bigPlay = wrap.querySelector('.neo-big-play');
+    const replay = wrap.querySelector('.neo-replay');
+    const replayIcon = wrap.querySelector('.neo-replay-icon');
     const loader = wrap.querySelector('.neo-loader');
 
     // ▼▼▼ НОВОЕ: Создаем элемент для текста процентов ▼▼▼
@@ -724,7 +726,39 @@ function enableQuality() {
             preview.style.display = 'none';
         }
         // ▲▲▲ КОНЕЦ ▲▲▲
+
+        if (!player.ended && replay && replay.style.display === 'flex') {
+            replay.style.display = 'none';
+        }
     });
+
+    player.addEventListener('ended', () => {
+        controls.style.display = 'none';
+        bigPlay.style.display = 'none';
+        preview.style.display = 'none';
+
+        if (replay) {
+            replay.style.display = 'flex';
+        }
+    });
+
+    if (replay) {
+        replay.addEventListener('click', () => {
+            player.currentTime = 0;
+
+            replay.style.display = 'none';
+
+            controls.style.display = 'block';
+            player.style.display = 'block';
+
+            localStorage.removeItem('neo_pos_' + wrapIndex);
+
+            showLoaderSpinner(true);
+            player.play().catch(err => {
+                console.error('❌ play() from replay failed:', err);
+            });
+        });
+    }
 
     player.addEventListener('pause', () => {
         if (isDragging) return;
