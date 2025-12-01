@@ -321,11 +321,7 @@ function showControlsAndPlay() {
         networkState: player.networkState
     });
 
-    const tryPlay = () => {
-        const buffered = player.buffered.length > 0 
-            ? player.buffered.end(player.buffered.length - 1) - player.currentTime 
-            : 0;
-        
+     
         const tryPlay = () => {
             const buffered = player.buffered.length > 0 
                 ? player.buffered.end(player.buffered.length - 1) - player.currentTime 
