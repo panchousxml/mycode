@@ -142,11 +142,11 @@ function runNeoPlayer(wrap, wrapIndex) {
         clearTimeout(pauseTimeout);
         disableQuality();
 
-        // ▼▼▼ НОВОЕ: Создаем спиннер если его нет ▼▼▼
+        // ▼▼▼ НОВОЕ: Создаем спиннер с классом для вращения ▼▼▼
         let loaderCircle = loader.querySelector('.neo-loader-circle');
         if (!loaderCircle) {
             loaderCircle = document.createElement('div');
-            loaderCircle.className = 'neo-loader-circle';
+            loaderCircle.className = 'neo-loader-circle neo-loader-spinner';
             loaderCircle.innerHTML = `
                 <svg viewBox="0 0 60 60">
                     <circle class="neo-loader-circle-bg" cx="30" cy="30" r="15"></circle>
@@ -154,12 +154,14 @@ function runNeoPlayer(wrap, wrapIndex) {
                 </svg>
             `;
             loader.insertBefore(loaderCircle, loaderText);
+        } else {
+            // Если спиннер уже есть, добавляем класс анимации
+            loaderCircle.classList.add('neo-loader-spinner');
         }
         
-        // Сбрасываем прогресс в начало
         const progressCircle = loaderCircle.querySelector('.neo-loader-circle-progress');
         progressCircle.style.strokeDashoffset = '94.2';
-        loaderText.innerText = 'Загрузка...';
+        loaderText.innerText = '';
         // ▲▲▲ КОНЕЦ ▲▲▲
 
         if (hlsInstance) {
@@ -402,11 +404,12 @@ if (wrapIndex === 0) {
         if (data?.type === 'mediaError' && (data?.details === 'bufferStalledError' || data?.details === 'bufferNudgeOnStall')) {
             console.log('⚠️ Buffer stall detected, showing loader');
             loader.style.display = 'flex';
-            loaderText.innerText = 'Загрузка...';
-            
+            loaderText.innerText = '';
+
             // ▼▼▼ НОВОЕ: Спиннер для stall ▼▼▼
             let loaderCircle = loader.querySelector('.neo-loader-circle');
             if (loaderCircle) {
+                loaderCircle.classList.add('neo-loader-spinner');
                 const progressCircle = loaderCircle.querySelector('.neo-loader-circle-progress');
                 progressCircle.style.strokeDashoffset = '94.2';
                 
@@ -422,12 +425,13 @@ if (wrapIndex === 0) {
                         updateStallProgress(Math.min(90, stallProgress));
                     }
                 }, 400);
-                
+
                 const onCanPlay = () => {
                     clearInterval(stallInterval);
                     updateStallProgress(100);
                     setTimeout(() => {
                         loader.style.display = 'none';
+                        loaderCircle.classList.remove('neo-loader-spinner');
                     }, 200);
                     console.log('✅ Buffer recovered');
                     player.removeEventListener('canplay', onCanPlay);
@@ -624,12 +628,11 @@ function enableQuality() {
         const wasPaused = player.paused;
         const t = player.currentTime;
 
-        // ▼▼▼ НОВОЕ: Показываем спиннер при переключении ▼▼▼
         loader.style.display = 'flex';
         let loaderCircle = loader.querySelector('.neo-loader-circle');
         if (!loaderCircle) {
             loaderCircle = document.createElement('div');
-            loaderCircle.className = 'neo-loader-circle';
+            loaderCircle.className = 'neo-loader-circle neo-loader-spinner';
             loaderCircle.innerHTML = `
                 <svg viewBox="0 0 60 60">
                     <circle class="neo-loader-circle-bg" cx="30" cy="30" r="15"></circle>
@@ -637,12 +640,14 @@ function enableQuality() {
                 </svg>
             `;
             loader.insertBefore(loaderCircle, loaderText);
+        } else {
+            loaderCircle.classList.add('neo-loader-spinner');
         }
-        
+
         const progressCircle = loaderCircle.querySelector('.neo-loader-circle-progress');
         progressCircle.style.strokeDashoffset = '94.2';
-        loaderText.innerText = 'Переключение...';
-        
+        loaderText.innerText = '';
+
         let qualityProgress = 0;
         const updateProgress = (percent) => {
             const offset = 94.2 * (1 - percent / 100);
@@ -667,6 +672,7 @@ function enableQuality() {
             updateProgress(100);
             setTimeout(() => {
                 loader.style.display = 'none';
+                loaderCircle.classList.remove('neo-loader-spinner');
             }, 200);
             // ▲▲▲ КОНЕЦ ▲▲▲
 
