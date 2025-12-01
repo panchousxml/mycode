@@ -1,12 +1,888 @@
-console.log('PLAYER JS BUILD', '01-12-2025 19:00 - LOADER WITH PERCENTAGE');
-document.addEventListener("DOMContentLoaded", () => {
+console.log('PLAYER JS BUILD', '01-12-2025 19:00 - REFACTORED');
+
+// ═══════════════════════════════════════════════════════════════
+// КОНФИГ И КОНСТАНТЫ
+// ═══════════════════════════════════════════════════════════════
+const CONFIG = {
+    BUFFER_TIMEOUT: { default: 7, short: 4 },
+    MIN_BUFFER_UPGRADE: 8,
+    PAUSE_PREVIEW_DELAY: 30000,
+    PAUSE_STOP_LOAD_DELAY: 15000,
+    PRELOAD_DELAY: 3000,
+    CONTROLS_HIDE_DELAY: 3000,
+    videos: [
+        { 
+            preview: 'https://static.tildacdn.com/vide6364-3939-4130-b261-383838353831/output_small.mp4', 
+            hls: 'https://video.pskamelit.ru/3min/master.m3u8',
+            startQuality: 360
+        },
+        { 
+            preview: 'https://static.tildacdn.com/vide3730-3263-4434-b961-656664323431/zatirka-vertoletom.mp4', 
+            hls: 'https://video.pskamelit.ru/vertolet/master.m3u8',
+            startQuality: 720,
+            lockQuality: true
+        }
+    ]
+};
+
+const ICONS = {
+    play: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>',
+    pause: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z"/></svg>',
+    fullscreen: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>'
+};
+
+// ═══════════════════════════════════════════════════════════════
+// УТИЛИТЫ
+// ═══════════════════════════════════════════════════════════════
+const Utils = {
+    $: (sel, ctx = document) => ctx.querySelector(sel),
+    $$: (sel, ctx = document) => ctx.querySelectorAll(sel),
+
+    savePosition: (idx, time) => localStorage.setItem('neo_pos_' + idx, time),
+    getPosition: (idx) => parseFloat(localStorage.getItem('neo_pos_' + idx)) || 0,
+    clearPosition: (idx) => localStorage.removeItem('neo_pos_' + idx),
+
+    getBuffered: (player) => {
+        return player.buffered.length > 0 
+            ? player.buffered.end(player.buffered.length - 1) - player.currentTime 
+            : 0;
+    },
+
+    isHidden: (el) => {
+        if (!el) return true;
+        const s = getComputedStyle(el);
+        return s.display === 'none' || s.visibility === 'hidden' || s.opacity === '0';
+    }
+};
+
+// ═══════════════════════════════════════════════════════════════
+// LOADER - Класс для управления спиннером
+// ═══════════════════════════════════════════════════════════════
+class Loader {
+    constructor(container) {
+        this.container = container;
+        this.text = this._ensureText();
+        this.circle = null;
+        this.progress = null;
+        this.interval = null;
+    }
+
+    _ensureText() {
+        let t = Utils.$('.neo-loader-text', this.container);
+        if (!t) {
+            t = document.createElement('div');
+            t.className = 'neo-loader-text';
+            this.container.appendChild(t);
+        }
+        return t;
+    }
+
+    _ensureCircle() {
+        if (!this.circle) {
+            this.circle = document.createElement('div');
+            this.circle.className = 'neo-loader-circle';
+            this.circle.innerHTML = `<svg viewBox="0 0 60 60">
+                <circle class="neo-loader-circle-bg" cx="30" cy="30" r="15"></circle>
+                <circle class="neo-loader-circle-progress" cx="30" cy="30" r="15"></circle>
+            </svg>`;
+            this.container.appendChild(this.circle);
+        }
+        this.progress = Utils.$('.neo-loader-circle-progress', this.circle);
+        return this.circle;
+    }
+
+    show(resetProgress = true) {
+        if (!this.container) return this;
+        this.container.style.display = 'flex';
+        this._ensureCircle();
+        this.circle.classList.add('neo-loader-spinner');
+
+        if (resetProgress) this.setProgress(0);
+        this.text.innerText = '';
+        return this;
+    }
+
+    hide() {
+        if (!this.container) return this;
+        this.container.style.display = 'none';
+        this.circle?.classList.remove('neo-loader-spinner');
+        this.stopInterval();
+        return this;
+    }
+
+    setProgress(percent) {
+        if (!this.progress) return this;
+        requestAnimationFrame(() => {
+            this.progress.style.strokeDashoffset = 94.2 * (1 - percent / 100);
+        });
+        return this;
+    }
+
+    setText(txt) {
+        if (this.text) this.text.innerText = txt;
+        return this;
+    }
+
+    stopInterval() {
+        if (this.interval) {
+            clearInterval(this.interval);
+            this.interval = null;
+        }
+        return this;
+    }
+
+    startFakeProgress(maxPercent = 20, speed = 300) {
+        let p = 0;
+        this.stopInterval();
+        this.interval = setInterval(() => {
+            if (p < maxPercent) {
+                p += Math.random() * 5;
+                this.setProgress(Math.min(maxPercent, p));
+            } else {
+                this.stopInterval();
+            }
+        }, speed);
+        return this;
+    }
+
+    runBufferProgress(getBuffered, targetBuffer, onReady) {
+        let displayed = 5;
+        this.stopInterval();
+
+        this.interval = setInterval(() => {
+            const buf = getBuffered();
+            const pct = targetBuffer > 0 ? Math.min(100, Math.round(buf / targetBuffer * 100)) : 100;
+
+            displayed = Math.max(displayed, pct);
+            if (displayed < 95) displayed++;
+            this.setText(`Загрузка ${displayed}%`);
+
+            if (buf >= targetBuffer) {
+                this.stopInterval();
+                this.setText('100%');
+                onReady();
+            }
+        }, 500);
+
+        return this;
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// NeoPlayer - Основной класс плеера
+// ═══════════════════════════════════════════════════════════════
+class NeoPlayer {
+    constructor(wrap, index) {
+        this.wrap = wrap;
+        this.index = index;
+        this.videoData = CONFIG.videos[index];
+
+        this.el = {
+            player: Utils.$('.neo-video', wrap),
+            preview: Utils.$('.neo-preview', wrap),
+            controls: Utils.$('.neo-controls', wrap),
+            bigPlay: Utils.$('.neo-big-play', wrap),
+            replay: Utils.$('.neo-replay', wrap),
+            replayIcon: Utils.$('.neo-replay-icon', wrap),
+            btnPlay: Utils.$('.neo-play', wrap),
+            playIcon: Utils.$('.neo-play-icon', wrap),
+            btnFull: Utils.$('.neo-fullscreen', wrap),
+            fullscreenIcon: Utils.$('.neo-fullscreen-icon', wrap),
+            btnPip: Utils.$('.neo-pip', wrap),
+            qual: Utils.$('.neo-quality', wrap),
+            vol: Utils.$('.neo-volume', wrap),
+            speed: Utils.$('.neo-speed', wrap),
+            bar: Utils.$('.neo-progress', wrap),
+            fill: Utils.$('.neo-progress-filled', wrap)
+        };
+
+        this.loader = new Loader(Utils.$('.neo-loader', wrap));
+        this.hls = null;
+        this.manifestReady = false;
+        this.optimalLevel = 0;
+        this.isDragging = false;
+        this.pauseTimeout = null;
+        this.pauseStopTimeout = null;
+        this.controlsTimeout = null;
+        this.previewLoaded = false;
+
+        this._init();
+    }
+
+    _init() {
+        this._setupPreviewObserver();
+        this._restorePosition();
+        this._bindEvents();
+        this._setInitialState();
+    }
+
+    _setInitialState() {
+        this.el.preview.style.display = 'block';
+        this.el.bigPlay.style.display = 'flex';
+        this.el.player.style.display = 'none';
+        this.el.controls.style.display = 'none';
+        this._disableQuality();
+    }
+
+    _setupPreviewObserver() {
+        const obs = new IntersectionObserver((entries) => {
+            if (entries[0].isIntersecting && !this.previewLoaded) {
+                this.previewLoaded = true;
+                this.el.preview.src = this.videoData.preview;
+                this.el.preview.autoplay = true;
+                obs.unobserve(this.wrap);
+            }
+        }, { rootMargin: '50px' });
+        obs.observe(this.wrap);
+    }
+
+    _restorePosition() {
+        const saved = Utils.getPosition(this.index);
+        if (!saved) return;
+
+        // Короткие видео — сброс позиции
+        if (this.videoData.lockQuality) {
+            console.log(`🔄 Player ${this.index}: Short video, position reset`);
+            this.el.player.currentTime = 0;
+            return;
+        }
+
+        this.el.player.addEventListener('loadedmetadata', () => {
+            const timeLeft = this.el.player.duration - saved;
+            if (timeLeft < 10) {
+                console.log(`🔄 Player ${this.index}: Near end, resetting`);
+                this.el.player.currentTime = 0;
+            } else {
+                console.log(`🔄 Player ${this.index}: Restoring ${saved}s`);
+                this.el.player.currentTime = saved;
+            }
+        }, { once: true });
+    }
+
+    _bindEvents() {
+        const { player, bigPlay, preview, replay, btnPlay, btnFull, btnPip, vol, speed, bar } = this.el;
+
+        // Старт видео
+        const startClick = () => this.start();
+        bigPlay?.addEventListener('click', startClick);
+        preview?.addEventListener('click', startClick);
+        this.wrap.addEventListener('click', e => {
+            if (e.target === this.wrap && this._isPreviewVisible()) this.start();
+        });
+
+        // Play/Pause
+        const togglePlay = () => this._togglePlay();
+        btnPlay?.addEventListener('click', togglePlay);
+        player.addEventListener('click', togglePlay);
+        player.addEventListener('touchend', e => { e.preventDefault(); togglePlay(); });
+
+        // События плеера
+        player.addEventListener('play', () => this._onPlay());
+        player.addEventListener('pause', () => this._onPause());
+        player.addEventListener('timeupdate', () => this._onTimeUpdate());
+        player.addEventListener('ended', () => this._onEnded());
+        player.addEventListener('canplay', () => this.loader.hide());
+        player.addEventListener('playing', () => this.loader.hide());
+
+        // Replay
+        replay?.addEventListener('click', () => this._replay());
+
+        // Контролы
+        if (vol) vol.oninput = () => player.volume = vol.value;
+        if (speed) speed.onchange = () => player.playbackRate = parseFloat(speed.value);
+        btnFull?.addEventListener('click', () => this._toggleFullscreen());
+        btnPip?.addEventListener('click', () => this._togglePip());
+
+        // PiP события
+        if (btnPip) {
+            player.addEventListener('enterpictureinpicture', () => {
+                btnPip.style.opacity = '0.8';
+                btnPip.style.background = 'rgba(100, 200, 255, 0.3)';
+            });
+            player.addEventListener('leavepictureinpicture', () => {
+                btnPip.style.opacity = '1';
+                btnPip.style.background = '';
+            });
+        }
+
+        // Seek bar
+        this._bindSeekBar(bar);
+
+        // Показ контролов
+        ['touchstart', 'mousemove'].forEach(evt => 
+            this.wrap.addEventListener(evt, () => this._showControls())
+        );
+
+        // Блокировка контекстного меню
+        [player, preview].forEach(el => 
+            el?.addEventListener('contextmenu', e => e.preventDefault())
+        );
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // ОСНОВНЫЕ МЕТОДЫ
+    // ═══════════════════════════════════════════════════════════════
+
+    start() {
+        console.log('🔴 startVideo CALLED');
+
+        this.el.bigPlay.style.display = 'none';
+        this.loader.show(true);
+        clearTimeout(this.pauseTimeout);
+        this._disableQuality();
+
+        this._destroyHls();
+        this.el.player.removeAttribute('src');
+
+        if (window.Hls?.isSupported()) {
+            console.log('🎬 Starting HLS playback from:', this.videoData.hls);
+            this._initHls();
+        } else {
+            console.log('❌ HLS not supported');
+            this.loader.hide();
+            this.el.bigPlay.style.display = 'flex';
+            this.el.preview.style.display = 'block';
+        }
+    }
+
+    _initHls() {
+        this.hls = new Hls({
+            backBufferLength: 20,
+            progressive: false,
+            enableWorker: true,
+            lowLatencyMode: false
+        });
+
+        // Прогресс загрузки
+        this.loader.startFakeProgress(20);
+
+        let loadProgress = 20;
+        this.hls.on(Hls.Events.FRAGMENT_LOADING, () => {
+            loadProgress = Math.max(20, loadProgress);
+            this.loader.setProgress(loadProgress);
+        });
+        this.hls.on(Hls.Events.FRAGMENT_LOADED, () => {
+            loadProgress = Math.min(85, loadProgress + 15);
+            this.loader.setProgress(loadProgress);
+        });
+        this.hls.on(Hls.Events.FRAG_BUFFERED, () => {
+            loadProgress = Math.min(90, loadProgress + 5);
+            this.loader.setProgress(loadProgress);
+        });
+
+        // Основные события HLS
+        this.hls.on(Hls.Events.MANIFEST_PARSED, () => this._onManifestParsed());
+        this.hls.on(Hls.Events.ERROR, (e, d) => this._onHlsError(d));
+        this.hls.on(Hls.Events.LEVEL_SWITCHED, () => this._updateQualityLabel());
+
+        this.hls.loadSource(this.videoData.hls);
+        this.hls.attachMedia(this.el.player);
+        console.log('✅ HLS attached, waiting for manifest...');
+    }
+
+    _destroyHls() {
+        if (this.hls) {
+            this.hls.destroy();
+            this.hls = null;
+            this.manifestReady = false;
+        }
+    }
+
+    _onManifestParsed() {
+        console.log('📡 MANIFEST_PARSED, levels:', this.hls.levels);
+
+        this.optimalLevel = this._findOptimalLevel();
+        this.hls.startLevel = this.optimalLevel;
+        console.log('🚀 Starting at level:', this.optimalLevel, 
+            'height:', this.hls.levels[this.optimalLevel]?.height);
+
+        // Ограничение авто-качества до 720p
+        const max720 = this.hls.levels.findIndex(l => l.height === 720);
+        if (max720 !== -1) {
+            this.hls.maxAutoLevel = max720;
+            console.log(`📍 maxAutoLevel locked to 720p (index ${max720})`);
+        }
+
+        // Блокировка апгрейда качества пока буфер не накопится
+        if (this.index === 0) {
+            this._blockQualityUpgrade();
+        }
+
+        // Жёсткая фиксация качества для коротких видео
+        if (this.videoData.lockQuality) {
+            this.hls.currentLevel = this.optimalLevel;
+            this.hls.maxAutoLevel = this.optimalLevel;
+            if (this.hls.abrController) {
+                this.hls.abrController.minAutoLevel = this.optimalLevel;
+                this.hls.abrController.maxAutoLevel = this.optimalLevel;
+            }
+            console.log(`🔒 Player ${this.index}: ABSOLUTE LOCK ${this.videoData.startQuality}p`);
+        }
+
+        this.manifestReady = true;
+        this._enableQuality();
+        this._updateQualityLabel();
+        this._showControlsAndPlay();
+    }
+
+    _findOptimalLevel() {
+        if (!this.hls?.levels.length) return 0;
+
+        const levels = this.hls.levels;
+        const target = this.videoData.startQuality || 360;
+
+        console.log(`🎯 Target quality for player ${this.index}:`, target);
+
+        let idx = levels.findIndex(l => l.height === target);
+        if (idx !== -1) {
+            console.log(`✅ Found ${target}p at index`, idx);
+            return idx;
+        }
+
+        // Fallback: ближайшее меньшее
+        for (let i = levels.length - 1; i >= 0; i--) {
+            if (levels[i].height < target) {
+                console.log(`⬇️ Using fallback: ${levels[i].height}p`);
+                return i;
+            }
+        }
+
+        console.log('⬆️ All levels above target, using lowest');
+        return levels.length - 1;
+    }
+
+    _blockQualityUpgrade() {
+        const abr = this.hls.abrController;
+        const orig = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(abr), 'nextAutoLevel');
+        const player = this.el.player;
+        const optLevel = this.optimalLevel;
+
+        Object.defineProperty(abr, 'nextAutoLevel', {
+            get() {
+                const current = orig.get.call(this);
+                const buf = Utils.getBuffered(player);
+
+                if (buf < CONFIG.MIN_BUFFER_UPGRADE && current > optLevel) {
+                    console.log(`🔒 Blocked upgrade, buffer: ${buf.toFixed(1)}s (need ${CONFIG.MIN_BUFFER_UPGRADE}s)`);
+                    return optLevel;
+                }
+                return current;
+            },
+            set(v) { orig.set?.call(this, v); },
+            configurable: true
+        });
+
+        console.log(`🌈 Player ${this.index}: Quality upgrade blocked until ${CONFIG.MIN_BUFFER_UPGRADE}s buffer`);
+    }
+
+    _showControlsAndPlay() {
+        this.el.player.style.display = 'block';
+        this.el.controls.style.display = 'block';
+
+        console.log('🎯 showControlsAndPlay', {
+            readyState: this.el.player.readyState,
+            duration: this.el.player.duration
+        });
+
+        const tryPlay = () => {
+            const player = this.el.player;
+            const buf = Utils.getBuffered(player);
+            let target = this.videoData.lockQuality ? CONFIG.BUFFER_TIMEOUT.short : CONFIG.BUFFER_TIMEOUT.default;
+
+            // Корректировка для конца видео
+            if (player.duration && isFinite(player.duration)) {
+                const remaining = player.duration - player.currentTime;
+                if (remaining < target) {
+                    target = Math.max(0, remaining - 0.1);
+                }
+            }
+
+            const isEndBuffered = player.duration && (player.currentTime + buf >= player.duration - 0.2);
+
+            if (buf < target && !isEndBuffered) {
+                console.log(`⏳ Waiting for buffer: ${buf.toFixed(2)}s / ${target.toFixed(2)}s`);
+                this.loader.show(true);
+                this._waitForBuffer(target);
+                return;
+            }
+
+            this.loader.setText('100%');
+            player.play()
+                .then(() => {
+                    console.log('✅ play() resolved');
+                    this.loader.hide();
+                })
+                .catch(err => console.error('❌ play() failed:', err));
+        };
+
+        if (this.el.player.readyState >= 2) {
+            tryPlay();
+        } else {
+            this.el.player.addEventListener('canplay', () => {
+                console.log('📥 canplay fired');
+                tryPlay();
+            }, { once: true });
+        }
+    }
+
+    _waitForBuffer(targetBuffer) {
+        const player = this.el.player;
+
+        this.loader.runBufferProgress(
+            () => Utils.getBuffered(player),
+            targetBuffer,
+            () => {
+                console.log('✅ Buffer ready, starting play');
+                player.play()
+                    .then(() => this.loader.hide())
+                    .catch(err => console.error('❌ play() failed:', err));
+            }
+        );
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // СОБЫТИЯ ПЛЕЕРА
+    // ═══════════════════════════════════════════════════════════════
+
+    _togglePlay() {
+        this.el.player.paused ? this.el.player.play() : this.el.player.pause();
+    }
+
+    _setPlayIcon(isPlay) {
+        if (this.el.playIcon) {
+            this.el.playIcon.innerHTML = isPlay ? ICONS.play : ICONS.pause;
+        }
+    }
+
+    _onPlay() {
+        clearTimeout(this.pauseStopTimeout);
+        clearTimeout(this.pauseTimeout);
+        this._setPlayIcon(false);
+
+        if (this.hls && this.manifestReady) {
+            console.log('▶️ Play: resuming segment loading');
+            this.hls.startLoad();
+        }
+    }
+
+    _onPause() {
+        if (this.isDragging) return;
+        this._setPlayIcon(true);
+
+        // Остановка загрузки через 15 секунд
+        if (this.hls && this.manifestReady) {
+            console.log('⏸️ Pause: scheduled HLS stop in 15s');
+            this.pauseStopTimeout = setTimeout(() => {
+                if (this.el.player.paused && this.hls) {
+                    console.log('🛑 Stopping segment loading after 15s pause');
+                    this.hls.stopLoad();
+                }
+            }, CONFIG.PAUSE_STOP_LOAD_DELAY);
+        }
+
+        // Возврат к превью через 30 секунд
+        this.pauseTimeout = setTimeout(() => {
+            if (this.el.player.paused) {
+                this.el.bigPlay.style.display = 'flex';
+                this.el.preview.style.display = 'block';
+                this.el.player.style.display = 'none';
+                this.el.controls.style.display = 'none';
+                this._setPlayIcon(true);
+            }
+        }, CONFIG.PAUSE_PREVIEW_DELAY);
+    }
+
+    _onTimeUpdate() {
+        const { player, fill, preview, replay } = this.el;
+
+        Utils.savePosition(this.index, player.currentTime);
+
+        if (player.duration && !this.isDragging) {
+            fill.style.width = (player.currentTime / player.duration * 100) + '%';
+        }
+
+        // Скрываем превью когда видео пошло
+        if (player.currentTime > 0.1 && !player.paused && preview.style.display !== 'none') {
+            this.loader.hide();
+            preview.style.display = 'none';
+        }
+
+        // Скрываем replay если видео не закончилось
+        if (!player.ended && replay?.style.display === 'flex') {
+            replay.style.display = 'none';
+        }
+    }
+
+    _onEnded() {
+        this.el.controls.style.display = 'none';
+        this.el.bigPlay.style.display = 'none';
+        this.el.preview.style.display = 'none';
+        if (this.el.replay) this.el.replay.style.display = 'flex';
+    }
+
+    _replay() {
+        this.el.player.currentTime = 0;
+        this.el.replay.style.display = 'none';
+        this.el.controls.style.display = 'block';
+        this.el.player.style.display = 'block';
+        Utils.clearPosition(this.index);
+        this.loader.show(true);
+        this.el.player.play().catch(err => console.error('❌ replay failed:', err));
+    }
+
+    _isPreviewVisible() {
+        return this.el.preview.style.display === 'block' && this.el.bigPlay.style.display === 'flex';
+    }
+
+    _showControls() {
+        this.el.controls.style.opacity = '1';
+        clearTimeout(this.controlsTimeout);
+        this.controlsTimeout = setTimeout(() => {
+            if (!this.el.player.paused) this.el.controls.style.opacity = '0';
+        }, CONFIG.CONTROLS_HIDE_DELAY);
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // КАЧЕСТВО
+    // ═══════════════════════════════════════════════════════════════
+
+    _disableQuality() {
+        if (this.el.qual) {
+            this.el.qual.disabled = true;
+            this.el.qual.onchange = null;
+        }
+    }
+
+    _enableQuality() {
+        if (!this.el.qual || !this.hls || !this.manifestReady) return;
+
+        this.el.qual.disabled = false;
+        this.el.qual.innerHTML = '<option value="auto">Auto</option>' +
+            this.hls.levels
+                .filter(l => l.height)
+                .map(l => `<option value="${l.height}">${l.height}p</option>`)
+                .join('');
+        this.el.qual.onchange = () => this._handleQualityChange();
+    }
+
+    _updateQualityLabel() {
+        if (!this.el.qual || !this.hls) return;
+
+        const currentLevel = this.hls.currentLevel;
+        let level;
+
+        if (currentLevel === -1) {
+            const nextLevel = this.hls.nextLevel;
+            level = nextLevel !== -1 ? this.hls.levels[nextLevel] : this.hls.levels[0];
+        } else {
+            level = this.hls.levels[currentLevel];
+        }
+
+        const label = level ? `${level.height}p` : 'Auto';
+        const opt = this.el.qual.querySelector('option[value="auto"]');
+        if (opt) opt.text = `Auto (${label})`;
+
+        console.log('📊 Quality label:', label);
+    }
+
+    _handleQualityChange() {
+        console.log('🔄 handleQualityChange');
+
+        if (!this.hls || !this.manifestReady) return;
+
+        const val = this.el.qual.value;
+        console.log('🎯 Selected:', val);
+
+        if (val === 'auto') {
+            this.hls.currentLevel = -1;
+            console.log('🌈 Auto quality enabled');
+            this._updateQualityLabel();
+            return;
+        }
+
+        const height = parseInt(val, 10);
+        const levelIndex = this.hls.levels.findIndex(l => l.height === height);
+
+        if (levelIndex === -1) {
+            console.log('❌ Level not found:', height);
+            return;
+        }
+
+        console.log('📌 Switching to:', levelIndex, height);
+
+        const wasPaused = this.el.player.paused;
+        const currentTime = this.el.player.currentTime;
+
+        this.loader.show(true).startFakeProgress(40);
+        this.hls.currentLevel = levelIndex;
+
+        const onFragChanged = () => {
+            console.log('📌 Fragment changed, restoring position:', currentTime);
+            this.loader.setProgress(100);
+            setTimeout(() => this.loader.hide(), 150);
+
+            this.el.player.currentTime = currentTime;
+            if (!wasPaused) {
+                this.el.player.play().catch(err => console.error('❌ play() after quality change:', err));
+            }
+            this.hls.off(Hls.Events.FRAG_CHANGED, onFragChanged);
+        };
+
+        this.hls.on(Hls.Events.FRAG_CHANGED, onFragChanged);
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // FULLSCREEN & PIP
+    // ═══════════════════════════════════════════════════════════════
+
+    _toggleFullscreen() {
+        const isFs = document.fullscreenElement || 
+                     document.webkitFullscreenElement || 
+                     document.mozFullScreenElement || 
+                     document.msFullscreenElement;
+
+        if (this.el.fullscreenIcon) {
+            this.el.fullscreenIcon.innerHTML = ICONS.fullscreen;
+        }
+
+        if (!isFs) {
+            const el = this.el.player.webkitEnterFullscreen ? this.el.player : this.wrap;
+            const fn = el.requestFullscreen || el.webkitRequestFullscreen || 
+                       el.mozRequestFullScreen || el.msRequestFullscreen ||
+                       el.webkitEnterFullscreen;
+            fn?.call(el)?.catch?.(() => {});
+        } else {
+            const fn = document.exitFullscreen || document.webkitExitFullscreen || 
+                       document.mozCancelFullScreen || document.msExitFullscreen;
+            fn?.call(document);
+        }
+    }
+
+    _togglePip() {
+        if (document.pictureInPictureElement) {
+            document.exitPictureInPicture().catch(err => console.log('PiP exit error:', err));
+        } else {
+            this.el.player.requestPictureInPicture?.().catch(err => console.log('PiP error:', err));
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // SEEK BAR
+    // ═══════════════════════════════════════════════════════════════
+
+    _bindSeekBar(bar) {
+        if (!bar) return;
+
+        const updateSeek = (e) => {
+            const rect = bar.getBoundingClientRect();
+            const clientX = e.clientX || e.touches?.[0]?.clientX || 0;
+            const x = clientX - rect.left;
+            const percent = Math.max(0, Math.min(1, x / rect.width));
+
+            if (!this.el.player.duration) return;
+
+            this.loader.show(true).startFakeProgress(85, 300);
+            this.el.player.currentTime = percent * this.el.player.duration;
+            this.el.fill.style.width = (percent * 100) + '%';
+        };
+
+        bar.addEventListener('click', updateSeek);
+
+        // Mouse events
+        bar.addEventListener('mousedown', (e) => {
+            this.isDragging = true;
+            bar.classList.add('neo-active');
+            clearTimeout(this.pauseTimeout);
+            this.el.player.pause();
+            updateSeek(e);
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (this.isDragging) updateSeek(e);
+        });
+
+        document.addEventListener('mouseup', () => {
+            if (this.isDragging) {
+                this.isDragging = false;
+                bar.classList.remove('neo-active');
+                this.el.player.play();
+            }
+        });
+
+        // Touch events
+        bar.addEventListener('touchstart', (e) => {
+            this.isDragging = true;
+            bar.classList.add('neo-active');
+            clearTimeout(this.pauseTimeout);
+            this.el.player.pause();
+            updateSeek(e);
+        });
+
+        document.addEventListener('touchmove', (e) => {
+            if (this.isDragging) updateSeek(e);
+        });
+
+        document.addEventListener('touchend', () => {
+            if (this.isDragging) {
+                this.isDragging = false;
+                bar.classList.remove('neo-active');
+                this.el.player.play();
+            }
+        });
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // HLS ERRORS
+    // ═══════════════════════════════════════════════════════════════
+
+    _onHlsError(data) {
+        console.error('❌ HLS ERROR:', data?.type, data?.details, data);
+
+        // Buffer stall — показываем лоадер
+        if (data?.type === 'mediaError' && 
+            ['bufferStalledError', 'bufferNudgeOnStall'].includes(data?.details)) {
+            console.log('⚠️ Buffer stall detected');
+            this.loader.show(true).startFakeProgress(90, 400);
+            this.loader.setText('');
+
+            this.el.player.addEventListener('canplay', () => {
+                this.loader.setProgress(100);
+                setTimeout(() => this.loader.hide(), 200);
+                console.log('✅ Buffer recovered');
+            }, { once: true });
+
+            if (!data?.fatal) return;
+        }
+
+        if (!data?.fatal) return;
+
+        switch (data.type) {
+            case Hls.ErrorTypes.NETWORK_ERROR:
+                console.warn('🔄 NETWORK_ERROR: will resume on play');
+                break;
+            case Hls.ErrorTypes.MEDIA_ERROR:
+                console.warn('🔄 MEDIA_ERROR: Recovering...');
+                this.hls?.recoverMediaError();
+                break;
+            default:
+                console.error('💥 FATAL ERROR: Destroying HLS');
+                this._destroyHls();
+                break;
+        }
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ИНИЦИАЛИЗАЦИЯ
+// ═══════════════════════════════════════════════════════════════
+let preloadSetupDone = false;
+
+document.addEventListener('DOMContentLoaded', () => {
     requestAnimationFrame(checkWrapper);
 });
 
-let preloadSetupDone = false;
-
 function checkWrapper() {
-    const wrappers = document.querySelectorAll('.neo-player-wrapper');
+    const wrappers = Utils.$$('.neo-player-wrapper');
     if (!wrappers.length) {
         return requestAnimationFrame(checkWrapper);
     }
@@ -15,30 +891,20 @@ function checkWrapper() {
 
 function checkPlayerReady(wrappers) {
     const player = wrappers[0].querySelector('video');
-    if (!player) {
+    if (!player || Utils.isHidden(player)) {
         return requestAnimationFrame(() => checkPlayerReady(wrappers));
     }
-
-    const style = window.getComputedStyle(player);
-    if (
-        style.display === "none" ||
-        style.visibility === "hidden" ||
-        style.opacity === "0"
-    ) {
-        return requestAnimationFrame(() => checkPlayerReady(wrappers));
-    }
-
-    initNeoPlayer(wrappers);
+    initNeoPlayers(wrappers);
 }
 
-function initNeoPlayer(wrappers) {
-    wrappers.forEach((wrap, index) => runNeoPlayer(wrap, index));
+function initNeoPlayers(wrappers) {
+    wrappers.forEach((wrap, index) => new NeoPlayer(wrap, index));
 
     if (preloadSetupDone) return;
     preloadSetupDone = true;
 
     window.addEventListener('load', () => {
-        const firstWrap = document.querySelectorAll('.neo-player-wrapper')[0];
+        const firstWrap = Utils.$('.neo-player-wrapper');
         if (!firstWrap) return;
 
         const firstPlayer = firstWrap.querySelector('.neo-video');
@@ -58,1013 +924,15 @@ function initNeoPlayer(wrappers) {
 
         setTimeout(() => {
             if (userStarted) return;
-
             stopPreload = preloadFirstSegment(firstWrap);
-        }, 3000);
-    });
-}
-
-function runNeoPlayer(wrap, wrapIndex) {
-    let hlsInstance = null;
-    let manifestReady = false;
-    let qual;
-    let player;
-    let currentDisplayQuality = 'Auto';
-    let optimalLevel = 0;
-
-    const isNativeHls = canPlayNativeHls();
-    const preview = wrap.querySelector('.neo-preview');
-    const bigPlay = wrap.querySelector('.neo-big-play');
-    const replay = wrap.querySelector('.neo-replay');
-    const replayIcon = wrap.querySelector('.neo-replay-icon');
-    const loader = wrap.querySelector('.neo-loader');
-
-    // ▼▼▼ НОВОЕ: Создаем элемент для текста процентов ▼▼▼
-    let loaderText = loader.querySelector('.neo-loader-text');
-    if (!loaderText) {
-        loaderText = document.createElement('div');
-        loaderText.className = 'neo-loader-text';
-        loader.appendChild(loaderText);
-    }
-    // ▲▲▲ КОНЕЦ ▲▲▲
-
-    // Показать спиннер поверх видео
-    function showLoaderSpinner(resetProgress = true) {
-        if (!loader) return;
-
-        loader.style.display = 'flex';
-
-        let loaderCircle = loader.querySelector('.neo-loader-circle');
-        if (!loaderCircle) {
-            loaderCircle = document.createElement('div');
-            loaderCircle.className = 'neo-loader-circle';
-            loaderCircle.innerHTML = `
-                <svg viewBox="0 0 60 60">
-                    <circle class="neo-loader-circle-bg" cx="30" cy="30" r="15"></circle>
-                    <circle class="neo-loader-circle-progress" cx="30" cy="30" r="15"></circle>
-                </svg>
-            `;
-            loader.appendChild(loaderCircle);
-        }
-
-        loaderCircle.classList.add('neo-loader-spinner');
-
-        const progressCircle = loaderCircle.querySelector('.neo-loader-circle-progress');
-        if (progressCircle && resetProgress) {
-            progressCircle.style.strokeDashoffset = '94.2';
-        }
-
-        return { loaderCircle, progressCircle };
-    }
-
-    function hideLoaderSpinner() {
-        if (!loader) return;
-        loader.style.display = 'none';
-
-        const loaderCircle = loader.querySelector('.neo-loader-circle');
-        if (loaderCircle) {
-            loaderCircle.classList.remove('neo-loader-spinner');
-        }
-    }
-    
-    player = wrap.querySelector('.neo-video');
-    const controls = wrap.querySelector('.neo-controls');
-    const btnPlay = wrap.querySelector('.neo-play');
-    const playIcon = wrap.querySelector('.neo-play-icon');
-    const btnFull = wrap.querySelector('.neo-fullscreen');
-    const fullscreenIcon = wrap.querySelector('.neo-fullscreen-icon');
-    const btnPip = wrap.querySelector('.neo-pip');
-    const vol = wrap.querySelector('.neo-volume');
-    qual = wrap.querySelector('.neo-quality');
-    const speed = wrap.querySelector('.neo-speed');
-    const bar = wrap.querySelector('.neo-progress');
-    const fill = wrap.querySelector('.neo-progress-filled');
-
-    const videosData = {
-        0: {
-            preview: 'https://static.tildacdn.com/vide6364-3939-4130-b261-383838353831/output_small.mp4',
-            hls: 'https://video.pskamelit.ru/3min/master.m3u8'
-        },
-        1: {
-            preview: 'https://static.tildacdn.com/vide3730-3263-4434-b961-656664323431/zatirka-vertoletom.mp4',
-            hls: 'https://video.pskamelit.ru/vertolet/master.m3u8'
-        }
-    };
-
-    const videoData = videosData[wrapIndex];
-    let isDragging = false;
-    let pauseTimeout = null;
-    let pauseStopLoadTimeout = null;
-    let previewLoaded = false;
-
-    const previewObserver = new IntersectionObserver((entries) => {
-        if (entries[0].isIntersecting && !previewLoaded) {
-            previewLoaded = true;
-            preview.src = videoData.preview;
-            preview.autoplay = true;
-            previewObserver.unobserve(wrap);
-        }
-    }, { rootMargin: '50px' });
-
-    previewObserver.observe(wrap);
-    preview.style.display = 'block';
-    bigPlay.style.display = 'flex';
-    player.style.display = 'none';
-    controls.style.display = 'none';
-    disableQuality();
-
-  // ЛОГИКА ВОССТАНОВЛЕНИЯ ПОЗИЦИИ
-    const savedPos = localStorage.getItem('neo_pos_' + wrapIndex);
-    if (savedPos) {
-        // Для ВТОРОГО видео (короткое, 15 сек) - всегда сбрасываем
-        if (wrapIndex === 1) {
-            console.log('🔄 Player 2: Short video, position reset to start');
-            player.currentTime = 0;
-        } 
-        // Для ПЕРВОГО видео (длинное)
-        else {
-            const pos = parseFloat(savedPos);
-            player.addEventListener('loadedmetadata', () => {
-                const duration = player.duration;
-                const timeLeft = duration - pos;
-                
-                if (timeLeft < 10) {
-                    console.log('🔄 Player 1: Near end (<10s), resetting to start');
-                    player.currentTime = 0;
-                } else {
-                    console.log(`🔄 Player 1: Restoring position ${pos}s`);
-                    player.currentTime = pos;
-                }
-            }, { once: true });
-        }
-    }
-
-    bigPlay.addEventListener('click', startVideo);
-    preview.addEventListener('click', startVideo);
-    wrap.addEventListener('click', (e) => {
-        if (e.target === wrap && isPreviewVisible()) {
-            startVideo();
-        }
-    });
-
-    function startVideo() {
-        console.log('🔴 startVideo CALLED');
-
-        bigPlay.style.display = 'none';
-        showLoaderSpinner(true); // показываем спиннер и сбрасываем прогресс
-        clearTimeout(pauseTimeout);
-        disableQuality();
-
-        loaderText.innerText = '';
-
-        if (hlsInstance) {
-            hlsInstance.destroy();
-            hlsInstance = null;
-            manifestReady = false;
-        }
-
-        player.removeAttribute('src');
-
-        if (isNativeHls) {
-            console.log('📱 Using native HLS');
-            player.src = videoData.hls;
-            player.addEventListener('loadeddata', showControlsAndPlay, { once: true });
-            player.load();
-        } else if (window.Hls && Hls.isSupported()) {
-            console.log('🎬 Starting HLS playback from:', videoData.hls);
-            console.log('✅ window.Hls exists:', !!window.Hls);
-            console.log('✅ Hls.isSupported():', Hls.isSupported());
-            hlsInstance = new Hls({
-                backBufferLength: 20,
-                progressive: false,
-                enableWorker: true,
-                lowLatencyMode: false
-            });
-
-            console.log('✅ Progressive streaming включен, используется стандартный loader');
-            
-            hlsInstance.on(Hls.Events.MANIFEST_PARSING_STARTED, () => {
-                console.log('📡 Manifest parsing started...');
-            });
-
-            // ▼▼▼ ИСПРАВЛЕНО: получаем progressCircle из showLoaderSpinner ▼▼▼
-            let loadProgress = 0;
-            const { progressCircle } = showLoaderSpinner(false) || {};
-
-            const updateProgressCircle = (percent) => {
-                if (!progressCircle) return;
-                requestAnimationFrame(() => {
-                    const offset = 94.2 * (1 - percent / 100);
-                    progressCircle.style.strokeDashoffset = offset;
-                });
-            };
-
-            const fakeProgress = setInterval(() => {
-                if (loadProgress < 20) {
-                    loadProgress += Math.random() * 5;
-                    updateProgressCircle(Math.min(20, loadProgress));
-                } else {
-                    clearInterval(fakeProgress);
-                }
-            }, 300);
-            
-            hlsInstance.on(Hls.Events.FRAGMENT_LOADING, () => {
-                loadProgress = Math.max(20, loadProgress);
-                updateProgressCircle(loadProgress);
-            });
-            
-            hlsInstance.on(Hls.Events.FRAGMENT_LOADED, () => {
-                loadProgress = Math.min(85, loadProgress + 15);
-                updateProgressCircle(loadProgress);
-            });
-            
-            hlsInstance.on(Hls.Events.FRAG_BUFFERED, () => {
-                loadProgress = Math.min(90, loadProgress + 5);
-                updateProgressCircle(loadProgress);
-            });
-            // ▲▲▲ КОНЕЦ ИСПРАВЛЕНИЯ ▲▲▲
-
-            hlsInstance.on(Hls.Events.MANIFEST_PARSED, onManifestParsed);
-            hlsInstance.on(Hls.Events.ERROR, onHlsError);
-            hlsInstance.on(Hls.Events.LEVEL_SWITCHED, onLevelSwitched);
-            hlsInstance.loadSource(videoData.hls);
-
-            hlsInstance.attachMedia(player);
-            console.log('✅ HLS attached to player, waiting for manifest...');
-        } else {
-            console.log('❌ HLS not supported!');
-            console.log('window.Hls:', window.Hls);
-            console.log('isNativeHls:', isNativeHls);
-            hideLoaderSpinner();
-            bigPlay.style.display = 'flex';
-            preview.style.display = 'block';
-        }
-    }
-
-    function findOptimalStartLevel() {
-        if (!hlsInstance || !hlsInstance.levels.length) return 0;
-
-        const levels = hlsInstance.levels;
-
-        // Для второго видео сразу выбираем 720p, без промежуточных уровней
-        if (wrapIndex === 1) {
-            const idx720 = levels.findIndex(l => l.height === 720);
-            if (idx720 !== -1) return idx720;
-
-            let fallback = levels.length - 1;
-            for (let i = levels.length - 1; i >= 0; i--) {
-                if (levels[i].height < 720) {
-                    fallback = i;
-                    break;
-                }
-            }
-
-            return fallback;
-        }
-
-        // Индивидуальная логика старта качества: остальные видео → 360p
-        const targetHeight = 360;
-        console.log(`🎯 Target quality for player ${wrapIndex}:`, targetHeight);
-
-        let idx = levels.findIndex(l => l.height === targetHeight);
-        if (idx !== -1) {
-            console.log(`✅ Found ${targetHeight}p at index`, idx);
-            return idx;
-        }
-
-        idx = -1;
-        for (let i = levels.length - 1; i >= 0; i--) {
-            if (levels[i].height < targetHeight) {
-                idx = i;
-                break;
-            }
-        }
-
-        if (idx !== -1) {
-            console.log(`⬇️ ${targetHeight}p not found, using fallback: ${levels[idx].height}p at index ${idx}`);
-            return idx;
-        }
-
-        console.log(`⬆️ All levels above ${targetHeight}p, using lowest`);
-        return levels.length - 1;
-    }
-
-    function updateQualityLabel() {
-        if (!qual || !hlsInstance) return;
-
-        const currentLevel = hlsInstance.currentLevel;
-        if (currentLevel === -1) {
-            const nextLevel = hlsInstance.nextLevel;
-            const level = nextLevel !== -1 ? hlsInstance.levels[nextLevel] : hlsInstance.levels[0];
-            currentDisplayQuality = level ? `${level.height}p` : 'Auto';
-            console.log('📊 Auto mode, displaying:', currentDisplayQuality);
-        } else {
-            const level = hlsInstance.levels[currentLevel];
-            currentDisplayQuality = level ? `${level.height}p` : 'Auto';
-            console.log('📊 Fixed level, displaying:', currentDisplayQuality);
-        }
-
-        const firstOption = qual.querySelector('option[value="auto"]');
-        if (firstOption) {
-            firstOption.text = `Auto (${currentDisplayQuality})`;
-        }
-    }
-
-    function onLevelSwitched() {
-        console.log('🎯 LEVEL_SWITCHED, current level:', hlsInstance.currentLevel);
-        updateQualityLabel();
-    }
-
-   function onManifestParsed() {
-    console.log('📡 MANIFEST_PARSED fired');
-    console.log('📦 Levels:', hlsInstance.levels);
-
-    optimalLevel = findOptimalStartLevel();
-    hlsInstance.startLevel = optimalLevel;
-    console.log('🚀 Starting at level:', optimalLevel, 'height:', hlsInstance.levels[optimalLevel].height);
-
-    // ← БЛОКИРУЕМ 1080p для Auto режима
-    const maxAutoLevelIndex = hlsInstance.levels.findIndex(l => l.height === 720);
-    if (maxAutoLevelIndex !== -1) {
-        hlsInstance.maxAutoLevel = maxAutoLevelIndex;
-        console.log(`📍 maxAutoLevel LOCKED to index ${maxAutoLevelIndex} (720p) - 1080p blocked for auto`);
-    }
-
-// ← НОВОЕ: Блокировка повышения качества пока буфер не накопится
-if (wrapIndex === 0) {
-    const MIN_BUFFER_FOR_UPGRADE = 8;
-    
-    const abrController = hlsInstance.abrController;
-    const originalNextAutoLevel = Object.getOwnPropertyDescriptor(
-        Object.getPrototypeOf(abrController), 
-        'nextAutoLevel'
-    );
-
-    Object.defineProperty(abrController, 'nextAutoLevel', {
-        get: function() {
-            const current = originalNextAutoLevel.get.call(this);
-            
-            const buffered = player.buffered.length > 0 
-                ? player.buffered.end(player.buffered.length - 1) - player.currentTime 
-                : 0;
-            
-            if (buffered < MIN_BUFFER_FOR_UPGRADE && current > optimalLevel) {
-                console.log(`🔒 Blocked upgrade, buffer: ${buffered.toFixed(1)}s (need ${MIN_BUFFER_FOR_UPGRADE}s)`);
-                return optimalLevel;
-            }
-            
-            return current;
-        },
-        set: function(value) {
-            if (originalNextAutoLevel.set) {
-                originalNextAutoLevel.set.call(this, value);
-            }
-        },
-        configurable: true
-    });
-
-    console.log('🌈 Player 1: Quality upgrade blocked until 8s buffer');
-}
-
-    // ▼▼▼ НОВОЕ: Показываем прогресс загрузки сегментов ▼▼▼
-    if (wrapIndex === 0) {
-        let downloadProgress = 0; // 0-100%
-        
-        hlsInstance.on(Hls.Events.FRAGMENT_LOADING, () => {
-            downloadProgress = Math.max(20, downloadProgress);
-        });
-        
-        hlsInstance.on(Hls.Events.FRAGMENT_LOADED, () => {
-            downloadProgress = Math.min(95, downloadProgress + 15);
-            if (loaderText && loader.style.display === 'flex') {
-                loaderText.innerText = `Загрузка ${downloadProgress}%`;
-            }
-        });
-        
-        hlsInstance.on(Hls.Events.FRAG_BUFFERED, () => {
-            downloadProgress = Math.min(99, downloadProgress + 5);
-            if (loaderText && loader.style.display === 'flex') {
-                loaderText.innerText = `Загрузка ${downloadProgress}%`;
-            }
-        });
-    }
-    // ▲▲▲ КОНЕЦ ▲▲▲
-
-    if (wrapIndex === 1) {
-        hlsInstance.startLevel = optimalLevel;
-        hlsInstance.currentLevel = optimalLevel;
-        hlsInstance.maxAutoLevel = optimalLevel;
-
-        if (hlsInstance.abrController) {
-            hlsInstance.abrController.minAutoLevel = optimalLevel;
-            hlsInstance.abrController.maxAutoLevel = optimalLevel;
-        }
-
-        console.log('🔒 Player 2: ABSOLUTE LOCK 720p');
-
-    }
-
-    manifestReady = true;
-    enableQuality();
-    updateQualityLabel();
-    showControlsAndPlay();
-}
-
-    function onHlsError(event, data) {
-        console.error('❌ HLS ERROR:', data?.type, data?.details, data);
-
-        if (data?.type === 'mediaError' && (data?.details === 'bufferStalledError' || data?.details === 'bufferNudgeOnStall')) {
-            console.log('⚠️ Buffer stall detected, showing loader');
-            const { loaderCircle, progressCircle } = showLoaderSpinner(true) || {};
-            loaderText.innerText = '';
-
-            if (loaderCircle && progressCircle) {
-                let stallProgress = 10;
-                const updateStallProgress = (percent) => {
-                    requestAnimationFrame(() => {
-                        const offset = 94.2 * (1 - percent / 100);
-                        progressCircle.style.strokeDashoffset = offset;
-                    });
-                };
-
-                const stallInterval = setInterval(() => {
-                    if (stallProgress < 90) {
-                        stallProgress += Math.random() * 6;
-                        updateStallProgress(Math.min(90, stallProgress));
-                    }
-                }, 400);
-
-                const onCanPlay = () => {
-                    clearInterval(stallInterval);
-                    updateStallProgress(100);
-                    setTimeout(() => {
-                        hideLoaderSpinner();
-                    }, 200);
-                    console.log('✅ Buffer recovered');
-                    player.removeEventListener('canplay', onCanPlay);
-                };
-                player.addEventListener('canplay', onCanPlay);
-
-                setTimeout(() => {
-                    clearInterval(stallInterval);
-                }, 15000);
-            }
-            // ▲▲▲ КОНЕЦ ▲▲▲
-            
-            if (!data || data.fatal !== true) {
-                return;
-            }
-        }
-
-        if (!data || data.fatal !== true) return;
-        switch (data.type) {
-            case Hls.ErrorTypes.NETWORK_ERROR:
-                console.warn('🔄 NETWORK_ERROR: загрузка возобновится после play');
-                break;
-            case Hls.ErrorTypes.MEDIA_ERROR:
-                console.warn('🔄 MEDIA_ERROR: Recovering...');
-                hlsInstance && hlsInstance.recoverMediaError();
-                break;
-            default:
-                console.error('💥 FATAL ERROR: Destroying HLS');
-                if (hlsInstance) {
-                    hlsInstance.destroy();
-                    hlsInstance = null;
-                }
-                break;
-        }
-    }
-
-function showControlsAndPlay() {
-    // Показываем плеер и контролы, но НЕ скрываем лоадер (он скроется при старте)
-    player.style.display = 'block';
-    controls.style.display = 'block';
-
-    console.log('🎯 showControlsAndPlay called', {
-        readyState: player.readyState,
-        duration: player.duration,
-        networkState: player.networkState
-    });
-
-     
-        const tryPlay = () => {
-            const buffered = player.buffered.length > 0 
-                ? player.buffered.end(player.buffered.length - 1) - player.currentTime 
-                : 0;
-            
-            let targetBuffer = (wrapIndex === 1) ? 4 : 7;
-            
-            if (player.duration && isFinite(player.duration)) {
-                const remaining = player.duration - player.currentTime;
-                if (remaining < targetBuffer) {
-                    targetBuffer = Math.max(0, remaining - 0.1); 
-                }
-            }
-
-            const isEndBuffered = player.duration && (player.currentTime + buffered >= player.duration - 0.2);
-
-            if (buffered < targetBuffer && !isEndBuffered) {
-                console.log(`⏳ Waiting for buffer: ${buffered.toFixed(2)}s / ${targetBuffer.toFixed(2)}s`);
-                showLoaderSpinner(true);
-
-                let lastDisplayedPercent = 5; // Помним последний показанный процент
-                
-                const checkBuffer = setInterval(() => {
-                    const curBuf = player.buffered.length > 0 
-                        ? player.buffered.end(player.buffered.length - 1) - player.currentTime 
-                        : 0;
-                    
-                    let curTarget = targetBuffer;
-                    if (player.duration && (player.duration - player.currentTime) < curTarget) {
-                        curTarget = Math.max(0, (player.duration - player.currentTime) - 0.1);
-                    }
-                    
-                    const curIsEnd = player.duration && (player.currentTime + curBuf >= player.duration - 0.2);
-
-                    // ▼▼▼ НОВОЕ: Показываем только если процент растет (не падает назад) ▼▼▼
-                    let percent = 0;
-                    if (curTarget > 0) {
-                        percent = Math.min(100, Math.round((curBuf / curTarget) * 100));
-                    } else {
-                        percent = 100;
-                    }
-                    
-                    // Процент всегда растет или остается, но не падает
-                    if (percent > lastDisplayedPercent) {
-                        lastDisplayedPercent = percent;
-                        loaderText.innerText = `Загрузка ${percent}%`;
-                    } else if (lastDisplayedPercent < 95) {
-                        // Если процент не растет, медленно добавляем +1% каждую итерацию (до 95%)
-                        lastDisplayedPercent = Math.min(95, lastDisplayedPercent + 1);
-                        loaderText.innerText = `Загрузка ${lastDisplayedPercent}%`;
-                    }
-                    // ▲▲▲ КОНЕЦ ▲▲▲
-
-                    console.log(`⏳ Buffering... ${curBuf.toFixed(2)}s / ${curTarget.toFixed(2)}s`);
-
-                    if (curBuf >= curTarget || curIsEnd) {
-                        clearInterval(checkBuffer);
-                        console.log(`✅ Buffer ready (${curBuf.toFixed(2)}s), starting play`);
-                        loaderText.innerText = '100%';
-
-                        player.play()
-                            .then(() => {
-                                console.log('✅ play() resolved');
-                                hideLoaderSpinner();
-                            })
-                            .catch(err => console.error('❌ play() failed:', err));
-                    }
-                }, 500);
-
-                return;
-            }
-
-            loaderText.innerText = '100%';
-            player.play()
-                .then(() => {
-                    console.log('✅ play() resolved');
-                    hideLoaderSpinner();
-                })
-                .catch(err => console.error('❌ play() failed:', err));
-        };
-
-        if (player.readyState >= 2) {
-            tryPlay();
-        } else {
-            // Используем только canplay, чтобы не дублировать вызовы
-            const onCanPlay = () => {
-                console.log('📥 canplay fired, trying play');
-                tryPlay();
-            };
-            player.addEventListener('canplay', onCanPlay, { once: true });
-        }
-    }
-
-    function isPreviewVisible() {
-        return preview.style.display === 'block' && bigPlay.style.display === 'flex';
-    }
-
-    function disableQuality() {
-        if (qual) {
-            qual.disabled = true;
-            qual.onchange = null;
-        }
-    }
-
-function enableQuality() {
-    if (!qual || !hlsInstance || !manifestReady) return;
-
-    qual.disabled = false;
-
-    let html = '<option value="auto">Auto</option>';
-
-    hlsInstance.levels.forEach((level, idx) => {
-        if (!level.height) return;
-
-        html += `<option value="${level.height}">${level.height}p</option>`;
-    });
-    
-    qual.innerHTML = html;
-    qual.onchange = () => handleQualityChange();
-}
-    function handleQualityChange() {
-        console.log("🔄 handleQualityChange called!");
-
-        if (!hlsInstance || !manifestReady) {
-            console.log("❌ hlsInstance or manifestReady not available", { hlsInstance, manifestReady });
-            return;
-        }
-
-        const value = qual.value;
-        console.log("🎯 Selected:", value);
-
-        if (value === "auto") {
-            hlsInstance.currentLevel = -1;
-            console.log("🌈 Auto quality enabled");
-            updateQualityLabel();
-            return;
-        }
-
-        const height = parseInt(value, 10);
-        const levelIndex = hlsInstance.levels.findIndex(
-            level => level.height === height
-        );
-
-        if (levelIndex === -1) {
-            console.log("❌ Level not found for height:", height);
-            return;
-        }
-
-        console.log("📌 Switching to:", levelIndex, height);
-
-        const wasPaused = player.paused;
-        const t = player.currentTime;
-
-        const { progressCircle } = showLoaderSpinner(true);
-        let qualityProgress = 0;
-
-        const updateProgress = (percent) => {
-            if (!progressCircle) return;
-            const offset = 94.2 * (1 - percent / 100);
-            progressCircle.style.strokeDashoffset = offset;
-        };
-
-        loaderText.innerText = '';
-
-        const qualityFakeProgress = setInterval(() => {
-            if (qualityProgress < 40) {
-                qualityProgress += Math.random() * 8;
-                updateProgress(Math.min(40, qualityProgress));
-            }
-        }, 300);
-        // ▲▲▲ КОНЕЦ ▲▲▲
-
-        hlsInstance.currentLevel = levelIndex;
-
-        const onFragChanged = () => {
-            console.log("📌 Fragment changed, restoring position:", t);
-
-            // ▼▼▼ НОВОЕ: Заполняем на 100% и закрываем ▼▼▼
-            clearInterval(qualityFakeProgress);
-            updateProgress(100);
-            setTimeout(() => {
-                hideLoaderSpinner();
-            }, 150);
-            // ▲▲▲ КОНЕЦ ▲▲▲
-
-            player.currentTime = t;
-
-            if (!wasPaused) {
-                player.play().catch(err => {
-                    console.error("❌ play() after quality change failed:", err);
-                });
-            }
-            hlsInstance.off(Hls.Events.FRAG_CHANGED, onFragChanged);
-        };
-
-        hlsInstance.on(Hls.Events.FRAG_CHANGED, onFragChanged);
-    }
-
-    player.addEventListener('timeupdate', () => {
-        localStorage.setItem('neo_pos_' + wrapIndex, player.currentTime);
-        if (player.duration && !isDragging) {
-            fill.style.width = (player.currentTime / player.duration * 100) + '%';
-        }
-
-        // ▼▼▼ НОВОЕ: Убираем лоадер и превью когда видео пошло ▼▼▼
-        if (player.currentTime > 0.1 && !player.paused && preview.style.display !== 'none') {
-            hideLoaderSpinner();
-            preview.style.display = 'none';
-        }
-        // ▲▲▲ КОНЕЦ ▲▲▲
-
-        if (!player.ended && replay && replay.style.display === 'flex') {
-            replay.style.display = 'none';
-        }
-    });
-
-    player.addEventListener('ended', () => {
-        controls.style.display = 'none';
-        bigPlay.style.display = 'none';
-        preview.style.display = 'none';
-
-        if (replay) {
-            replay.style.display = 'flex';
-        }
-    });
-
-    if (replay) {
-        replay.addEventListener('click', () => {
-            player.currentTime = 0;
-
-            replay.style.display = 'none';
-
-            controls.style.display = 'block';
-            player.style.display = 'block';
-
-            localStorage.removeItem('neo_pos_' + wrapIndex);
-
-            showLoaderSpinner(true);
-            player.play().catch(err => {
-                console.error('❌ play() from replay failed:', err);
-            });
-        });
-    }
-
-    player.addEventListener('pause', () => {
-        if (isDragging) return;
-
-        if (pauseStopLoadTimeout) {
-            clearTimeout(pauseStopLoadTimeout);
-            pauseStopLoadTimeout = null;
-        }
-
-        if (hlsInstance && manifestReady) {
-            console.log('⏸️ Пауза: запланирована остановка HLS через 15 секунд');
-            pauseStopLoadTimeout = setTimeout(() => {
-                if (player.paused && hlsInstance) {
-                    console.log('🛑 Останавливаю загрузку сегментов после 15 секунд паузы');
-                    hlsInstance.stopLoad(); // [web:15][web:48]
-                }
-            }, 15000);
-        }
-
-        // Остальная логика паузы (показ превью, большую кнопку play и т.д.)
-        clearTimeout(pauseTimeout);
-        pauseTimeout = setTimeout(() => {
-            if (player.paused) {
-                bigPlay.style.display = 'flex';
-                preview.style.display = 'block';
-                player.style.display = 'none';
-                controls.style.display = 'none';
-                setPlayIcon(true);
-            }
-        }, 30000);
-    });
-
-    player.addEventListener('play', () => {
-        if (pauseStopLoadTimeout) {
-            clearTimeout(pauseStopLoadTimeout);
-            pauseStopLoadTimeout = null;
-        }
-
-        clearTimeout(pauseTimeout);
-
-        // Возобновляем загрузку HLS при play
-        if (hlsInstance && manifestReady) {
-            console.log('▶️ Play: возобновляю загрузку сегментов');
-            hlsInstance.startLoad(); // [web:51][web:48]
-        }
-    });
-
-    function setPlayIcon(isPlay) {
-        if (!playIcon) return;
-        playIcon.innerHTML = isPlay
-            ? '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>'
-            : '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z"/></svg>';
-    }
-
-    function setFullscreenIcon(isFullscreen) {
-        if (!fullscreenIcon) return;
-        fullscreenIcon.innerHTML = isFullscreen
-            ? '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>'
-            : '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>';
-    }
-
-    function togglePlay() {
-        if (player.paused) {
-            player.play();
-        } else {
-            player.pause();
-        }
-    }
-
-    btnPlay && (btnPlay.onclick = togglePlay);
-    player.onclick = togglePlay;
-    player.addEventListener('touchend', (e) => {
-        e.preventDefault();
-        togglePlay();
-    });
-
-    player.onplay = () => setPlayIcon(false);
-    player.onpause = () => setPlayIcon(true);
-
-    if (vol) {
-        vol.oninput = () => player.volume = vol.value;
-    }
-
-    if (speed) {
-        speed.onchange = () => player.playbackRate = parseFloat(speed.value);
-    }
-
-    if (btnFull) {
-        btnFull.onclick = () => {
-            const isFullscreen = document.fullscreenElement ||
-                document.webkitFullscreenElement ||
-                document.mozFullScreenElement ||
-                document.msFullscreenElement;
-
-            if (!isFullscreen) {
-                setFullscreenIcon(true);
-                if (player.webkitEnterFullscreen) {
-                    player.webkitEnterFullscreen();
-                } else if (wrap.requestFullscreen) {
-                    wrap.requestFullscreen().catch(() => {});
-                } else if (wrap.webkitRequestFullscreen) {
-                    wrap.webkitRequestFullscreen();
-                } else if (wrap.mozRequestFullScreen) {
-                    wrap.mozRequestFullScreen();
-                } else if (wrap.msRequestFullscreen) {
-                    wrap.msRequestFullscreen();
-                }
-            } else {
-                setFullscreenIcon(false);
-                if (document.exitFullscreen) {
-                    document.exitFullscreen();
-                } else if (document.webkitExitFullscreen) {
-                    document.webkitExitFullscreen();
-                } else if (document.mozCancelFullScreen) {
-                    document.mozCancelFullScreen();
-                } else if (document.msExitFullscreen) {
-                    document.msExitFullscreen();
-                }
-            }
-        };
-    }
-
-    if (btnPip) {
-        btnPip.onclick = async () => {
-            try {
-                if (document.pictureInPictureElement) {
-                    await document.exitPictureInPicture();
-                } else {
-                    await player.requestPictureInPicture();
-                }
-            } catch (err) {
-                console.log('PiP error:', err);
-            }
-        };
-
-        player.addEventListener('enterpictureinpicture', () => {
-            btnPip.style.opacity = '0.8';
-            btnPip.style.background = 'rgba(100, 200, 255, 0.3)';
-        });
-
-        player.addEventListener('leavepictureinpicture', () => {
-            btnPip.style.opacity = '1';
-            btnPip.style.background = '';
-        });
-    }
-
-    player.addEventListener('contextmenu', (e) => {
-        e.preventDefault();
-        return false;
-    });
-
-    preview.addEventListener('contextmenu', (e) => {
-        e.preventDefault();
-        return false;
-    });
-
-    function updateSeekBar(e) {
-        const rect = bar.getBoundingClientRect();
-        const clientX = e.clientX || (e.touches ? e.touches[0].clientX : 0);
-        const x = clientX - rect.left;
-        const percent = Math.max(0, Math.min(1, x / rect.width));
-
-        if (!player.duration) return;
-
-        const { progressCircle } = showLoaderSpinner(true) || {};
-
-        if (seekLoaderInterval) {
-            clearInterval(seekLoaderInterval);
-            seekLoaderInterval = null;
-        }
-
-        let seekProgress = 0;
-
-        const updateSeekProgress = (p) => {
-            if (!progressCircle) return;
-            const offset = 94.2 * (1 - p / 100);
-            progressCircle.style.strokeDashoffset = offset;
-        };
-
-        // Фейковый прогресс во время ожидания после перемотки
-        seekLoaderInterval = setInterval(() => {
-            if (seekProgress < 85) {
-                seekProgress += 5;
-                updateSeekProgress(seekProgress);
-            }
-        }, 300);
-
-        player.currentTime = percent * player.duration;
-        fill.style.width = (percent * 100) + '%';
-    }
-
-    let seekLoaderInterval = null;
-
-    bar.addEventListener('click', updateSeekBar);
-
-    bar.addEventListener('mousedown', (e) => {
-        isDragging = true;
-        bar.classList.add('neo-active');
-        clearTimeout(pauseTimeout);
-        player.pause();
-        updateSeekBar(e);
-    });
-
-    document.addEventListener('mousemove', (e) => {
-        if (isDragging) updateSeekBar(e);
-    });
-
-    document.addEventListener('mouseup', () => {
-        if (isDragging) {
-            isDragging = false;
-            bar.classList.remove('neo-active');
-            player.play();
-        }
-    });
-
-    bar.addEventListener('touchstart', (e) => {
-        isDragging = true;
-        bar.classList.add('neo-active');
-        clearTimeout(pauseTimeout);
-        player.pause();
-        updateSeekBar(e);
-    });
-
-    document.addEventListener('touchmove', (e) => {
-        if (isDragging) updateSeekBar(e);
-    });
-
-    document.addEventListener('touchend', () => {
-        if (isDragging) {
-            isDragging = false;
-            bar.classList.remove('neo-active');
-            player.play();
-        }
-    });
-
-    let controlsTimeout;
-
-    function showControls() {
-        controls.style.opacity = '1';
-        clearTimeout(controlsTimeout);
-        controlsTimeout = setTimeout(() => {
-            if (!player.paused) controls.style.opacity = '0';
-        }, 3000);
-    }
-
-    wrap.addEventListener('touchstart', showControls);
-    wrap.addEventListener('mousemove', showControls);
-
-    function stopSeekLoader() {
-        if (seekLoaderInterval) {
-            clearInterval(seekLoaderInterval);
-            seekLoaderInterval = null;
-        }
-        hideLoaderSpinner();
-    }
-
-    player.addEventListener('canplay', () => {
-        stopSeekLoader();
-    });
-
-    player.addEventListener('playing', () => {
-        stopSeekLoader();
+        }, CONFIG.PRELOAD_DELAY);
     });
 }
 
 function preloadFirstSegment(wrap) {
-    if (!wrap) return null;
+    if (!wrap || !window.Hls?.isSupported()) return null;
 
-    const videoData = {
-        preview: 'https://static.tildacdn.com/vide6364-3939-4130-b261-383838353831/output_small.mp4',
-        hls: 'https://video.pskamelit.ru/3min/master.m3u8'
-    };
-
-    if (!window.Hls || !Hls.isSupported()) return null;
-
+    const videoData = CONFIG.videos[0];
     const tempVideo = document.createElement('video');
     tempVideo.muted = true;
 
@@ -1088,26 +956,22 @@ function preloadFirstSegment(wrap) {
 
         try {
             hls.stopLoad();
-        } catch (e) {
-            // тихо игнорируем, если экземпляр уже остановлен
-        }
+        } catch (e) {}
 
         hls.destroy();
         tempVideo.removeAttribute('src');
 
-        console.log(`⏹️ Предзагрузка остановлена (${reason})`);
+        console.log(`⏹️ Preload stopped (${reason})`);
     };
 
     hls.on(Hls.Events.FRAG_LOADED, () => {
-        loadedSegments += 1;
+        loadedSegments++;
         if (loadedSegments >= 2) {
             stopPreload('segment-limit');
         }
     });
 
-    hls.on(Hls.Events.ERROR, () => {
-        stopPreload('error');
-    });
+    hls.on(Hls.Events.ERROR, () => stopPreload('error'));
 
     hls.on(Hls.Events.MEDIA_ATTACHED, () => {
         hls.loadSource(videoData.hls);
@@ -1116,16 +980,11 @@ function preloadFirstSegment(wrap) {
 
     hls.attachMedia(tempVideo);
 
-    stopTimeout = setTimeout(() => {
-        stopPreload('timeout');
-    }, 7000);
+    stopTimeout = setTimeout(() => stopPreload('timeout'), 7000);
 
-    console.log('🟡 Тихая предзагрузка первого сегмента запущена');
+    console.log('🟡 Silent preload started');
 
     return stopPreload;
 }
 
-function canPlayNativeHls() {
-    return false;
-}
-console.log("🚀 BUILD WITH ADAPTIVE START LEVEL 720p");
+console.log('🚀 REFACTORED BUILD WITH CLASSES');
