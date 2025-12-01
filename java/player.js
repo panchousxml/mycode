@@ -707,6 +707,21 @@ function runNeoPlayer(wrap, wrapIndex) {
         if (!player.ended && replay && replay.style.display === 'flex') {
             replay.style.display = 'none';
         }
+
+        if (player.duration && !player.paused) {
+            const timeLeft = player.duration - player.currentTime;
+            if (timeLeft <= 1 && replay && replay.style.display !== 'flex') {
+                replay.style.display = 'flex';
+            }
+        }
+
+        if (player.duration &&
+            player.currentTime < player.duration - 1 &&
+            replay &&
+            replay.style.display === 'flex' &&
+            !player.ended) {
+            replay.style.display = 'none';
+        }
     });
 
     player.addEventListener('ended', () => {
@@ -778,14 +793,21 @@ function runNeoPlayer(wrap, wrapIndex) {
                 if (replayProgress < 40) {
                     replayProgress += Math.random() * 8;
                     updateProgressCircle(progressCircle, Math.min(40, replayProgress));
+                } else {
+                    clearInterval(replayFakeProgress);
                 }
             }, 300);
 
-            player.play().then(() => {
-                clearInterval(replayFakeProgress);
-                updateProgressCircle(progressCircle, 100);
-                setTimeout(() => hideLoaderSpinner(), 150);
-            }).catch(err => console.error('❌ replay failed:', err));
+            player.play()
+                .then(() => {
+                    clearInterval(replayFakeProgress);
+                    updateProgressCircle(progressCircle, 100);
+                    setTimeout(() => hideLoaderSpinner(), 150);
+                })
+                .catch(err => {
+                    clearInterval(replayFakeProgress);
+                    console.error('❌ play() from replay failed:', err);
+                });
         });
     }
 
