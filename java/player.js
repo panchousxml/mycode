@@ -873,14 +873,17 @@ function enableQuality() {
         const percent = Math.max(0, Math.min(1, x / rect.width));
 
         if (player.duration) {
-            // Показать спиннер при перемотке
+            // Показать затемнение и спиннер
             loader.style.display = 'flex';
 
             let loaderCircle = loader.querySelector('.neo-loader-circle');
             if (loaderCircle) {
+                // Включаем анимацию вращения
                 loaderCircle.classList.add('neo-loader-spinner');
+
                 const progressCircle = loaderCircle.querySelector('.neo-loader-circle-progress');
                 if (progressCircle) {
+                    // Сбрасываем прогресс в начало при новой перемотке
                     progressCircle.style.strokeDashoffset = '94.2';
                 }
             }
