@@ -130,7 +130,7 @@ function runNeoPlayer(wrap, wrapIndex) {
             console.log('✅ window.Hls exists:', !!window.Hls);
             console.log('✅ Hls.isSupported():', Hls.isSupported());
             hlsInstance = new Hls({
-                backBufferLength: 90,
+                backBufferLength: 20,
                 progressive: false,
                 enableWorker: true,
                 lowLatencyMode: false
