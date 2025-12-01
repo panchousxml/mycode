@@ -771,6 +771,12 @@ function runNeoPlayer(wrap, wrapIndex) {
     player.addEventListener('pause', () => {
         if (isDragging) return;
 
+        // ❌ НЕ скрывай UI если видео закончилось — ended уже это сделал
+        if (player.ended) {
+            console.log(`[Video ${wrapIndex}] Pause after ended, skipping UI hide`);
+            return;
+        }
+
         if (pauseStopLoadTimeout) {
             clearTimeout(pauseStopLoadTimeout);
             pauseStopLoadTimeout = null;
