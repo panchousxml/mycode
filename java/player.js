@@ -327,7 +327,7 @@ function showControlsAndPlay() {
             : 0;
         
         // НОВОЕ: Для второго плеера (index 1) ждем 0, для первого - 7 секунд
-        const MIN_SAFE_BUFFER = (wrapIndex === 1) ? 0 : 7; 
+        const MIN_SAFE_BUFFER = (wrapIndex === 1) ? 4 : 7; 
         
         if (buffered < MIN_SAFE_BUFFER) {
             console.log(`⏳ Waiting for buffer: ${buffered.toFixed(1)}s / ${MIN_SAFE_BUFFER}s`);
