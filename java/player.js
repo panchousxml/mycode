@@ -45,7 +45,7 @@ function runNeoPlayer(wrap, wrapIndex) {
     const preview = wrap.querySelector('.neo-preview');
     const bigPlay = wrap.querySelector('.neo-big-play');
     const loader = wrap.querySelector('.neo-loader');
-    
+
     // ▼▼▼ НОВОЕ: Создаем элемент для текста процентов ▼▼▼
     let loaderText = loader.querySelector('.neo-loader-text');
     if (!loaderText) {
@@ -54,6 +54,46 @@ function runNeoPlayer(wrap, wrapIndex) {
         loader.appendChild(loaderText);
     }
     // ▲▲▲ КОНЕЦ ▲▲▲
+
+    // Показать спиннер поверх видео
+    function showLoaderSpinner(resetProgress = true) {
+        if (!loader) return;
+
+        loader.style.display = 'flex';
+
+        let loaderCircle = loader.querySelector('.neo-loader-circle');
+        if (!loaderCircle) {
+            loaderCircle = document.createElement('div');
+            loaderCircle.className = 'neo-loader-circle';
+            loaderCircle.innerHTML = `
+                <svg viewBox="0 0 60 60">
+                    <circle class="neo-loader-circle-bg" cx="30" cy="30" r="15"></circle>
+                    <circle class="neo-loader-circle-progress" cx="30" cy="30" r="15"></circle>
+                </svg>
+            `;
+            loader.appendChild(loaderCircle);
+        }
+
+        loaderCircle.classList.add('neo-loader-spinner');
+
+        const progressCircle = loaderCircle.querySelector('.neo-loader-circle-progress');
+        if (progressCircle && resetProgress) {
+            progressCircle.style.strokeDashoffset = '94.2';
+        }
+
+        return { loaderCircle, progressCircle };
+    }
+
+    // Скрыть спиннер
+    function hideLoaderSpinner() {
+        if (!loader) return;
+        loader.style.display = 'none';
+
+        const loaderCircle = loader.querySelector('.neo-loader-circle');
+        if (loaderCircle) {
+            loaderCircle.classList.remove('neo-loader-spinner');
+        }
+    }
     
     player = wrap.querySelector('.neo-video');
     const controls = wrap.querySelector('.neo-controls');
@@ -139,31 +179,11 @@ function runNeoPlayer(wrap, wrapIndex) {
         console.log('🔴 startVideo CALLED');
 
         bigPlay.style.display = 'none';
-        loader.style.display = 'flex';
+        showLoaderSpinner(true); // показываем спиннер и сбрасываем прогресс
         clearTimeout(pauseTimeout);
         disableQuality();
 
-        // ▼▼▼ НОВОЕ: Создаем спиннер с классом для вращения ▼▼▼
-        let loaderCircle = loader.querySelector('.neo-loader-circle');
-        if (!loaderCircle) {
-            loaderCircle = document.createElement('div');
-            loaderCircle.className = 'neo-loader-circle neo-loader-spinner';
-            loaderCircle.innerHTML = `
-                <svg viewBox="0 0 60 60">
-                    <circle class="neo-loader-circle-bg" cx="30" cy="30" r="15"></circle>
-                    <circle class="neo-loader-circle-progress" cx="30" cy="30" r="15"></circle>
-                </svg>
-            `;
-            loader.insertBefore(loaderCircle, loaderText);
-        } else {
-            // Если спиннер уже есть, добавляем класс анимации
-            loaderCircle.classList.add('neo-loader-spinner');
-        }
-        
-        const progressCircle = loaderCircle.querySelector('.neo-loader-circle-progress');
-        progressCircle.style.strokeDashoffset = '94.2';
         loaderText.innerText = '';
-        // ▲▲▲ КОНЕЦ ▲▲▲
 
         if (hlsInstance) {
             hlsInstance.destroy();
@@ -242,7 +262,7 @@ function runNeoPlayer(wrap, wrapIndex) {
             console.log('❌ HLS not supported!');
             console.log('window.Hls:', window.Hls);
             console.log('isNativeHls:', isNativeHls);
-            loader.style.display = 'none';
+            hideLoaderSpinner();
             bigPlay.style.display = 'flex';
             preview.style.display = 'block';
         }
@@ -406,16 +426,10 @@ if (wrapIndex === 0) {
 
         if (data?.type === 'mediaError' && (data?.details === 'bufferStalledError' || data?.details === 'bufferNudgeOnStall')) {
             console.log('⚠️ Buffer stall detected, showing loader');
-            loader.style.display = 'flex';
+            const { loaderCircle, progressCircle } = showLoaderSpinner(true) || {};
             loaderText.innerText = '';
 
-            // ▼▼▼ НОВОЕ: Спиннер для stall ▼▼▼
-            let loaderCircle = loader.querySelector('.neo-loader-circle');
-            if (loaderCircle) {
-                loaderCircle.classList.add('neo-loader-spinner');
-                const progressCircle = loaderCircle.querySelector('.neo-loader-circle-progress');
-                progressCircle.style.strokeDashoffset = '94.2';
-                
+            if (loaderCircle && progressCircle) {
                 let stallProgress = 10;
                 const updateStallProgress = (percent) => {
                     requestAnimationFrame(() => {
@@ -423,7 +437,7 @@ if (wrapIndex === 0) {
                         progressCircle.style.strokeDashoffset = offset;
                     });
                 };
-                
+
                 const stallInterval = setInterval(() => {
                     if (stallProgress < 90) {
                         stallProgress += Math.random() * 6;
@@ -435,14 +449,13 @@ if (wrapIndex === 0) {
                     clearInterval(stallInterval);
                     updateStallProgress(100);
                     setTimeout(() => {
-                        loader.style.display = 'none';
-                        loaderCircle.classList.remove('neo-loader-spinner');
+                        hideLoaderSpinner();
                     }, 200);
                     console.log('✅ Buffer recovered');
                     player.removeEventListener('canplay', onCanPlay);
                 };
                 player.addEventListener('canplay', onCanPlay);
-                
+
                 setTimeout(() => {
                     clearInterval(stallInterval);
                 }, 15000);
@@ -503,8 +516,8 @@ function showControlsAndPlay() {
 
             if (buffered < targetBuffer && !isEndBuffered) {
                 console.log(`⏳ Waiting for buffer: ${buffered.toFixed(2)}s / ${targetBuffer.toFixed(2)}s`);
-                loader.style.display = 'flex';
-                
+                showLoaderSpinner(true);
+
                 let lastDisplayedPercent = 5; // Помним последний показанный процент
                 
                 const checkBuffer = setInterval(() => {
@@ -544,19 +557,25 @@ function showControlsAndPlay() {
                         clearInterval(checkBuffer);
                         console.log(`✅ Buffer ready (${curBuf.toFixed(2)}s), starting play`);
                         loaderText.innerText = '100%';
-                        
+
                         player.play()
-                            .then(() => console.log('✅ play() resolved'))
+                            .then(() => {
+                                console.log('✅ play() resolved');
+                                hideLoaderSpinner();
+                            })
                             .catch(err => console.error('❌ play() failed:', err));
                     }
                 }, 500);
-                
+
                 return;
             }
-            
+
             loaderText.innerText = '100%';
             player.play()
-                .then(() => console.log('✅ play() resolved'))
+                .then(() => {
+                    console.log('✅ play() resolved');
+                    hideLoaderSpinner();
+                })
                 .catch(err => console.error('❌ play() failed:', err));
         };
 
@@ -632,34 +651,18 @@ function enableQuality() {
         const wasPaused = player.paused;
         const t = player.currentTime;
 
-        loader.style.display = 'flex';
-        let loaderCircle = loader.querySelector('.neo-loader-circle');
-        if (!loaderCircle) {
-            loaderCircle = document.createElement('div');
-            loaderCircle.className = 'neo-loader-circle neo-loader-spinner';
-            loaderCircle.innerHTML = `
-                <svg viewBox="0 0 60 60">
-                    <circle class="neo-loader-circle-bg" cx="30" cy="30" r="15"></circle>
-                    <circle class="neo-loader-circle-progress" cx="30" cy="30" r="15"></circle>
-                </svg>
-            `;
-            loader.insertBefore(loaderCircle, loaderText);
-        } else {
-            loaderCircle.classList.add('neo-loader-spinner');
-        }
-
-        const progressCircle = loaderCircle.querySelector('.neo-loader-circle-progress');
-        progressCircle.style.strokeDashoffset = '94.2';
+        const { progressCircle } = showLoaderSpinner(true);
         loaderText.innerText = '';
-
         let qualityProgress = 0;
+
         const updateProgress = (percent) => {
+            if (!progressCircle) return;
             requestAnimationFrame(() => {
                 const offset = 94.2 * (1 - percent / 100);
                 progressCircle.style.strokeDashoffset = offset;
             });
         };
-        
+
         const qualityFakeProgress = setInterval(() => {
             if (qualityProgress < 40) {
                 qualityProgress += Math.random() * 8;
@@ -677,9 +680,8 @@ function enableQuality() {
             clearInterval(qualityFakeProgress);
             updateProgress(100);
             setTimeout(() => {
-                loader.style.display = 'none';
-                loaderCircle.classList.remove('neo-loader-spinner');
-            }, 200);
+                hideLoaderSpinner();
+            }, 150);
             // ▲▲▲ КОНЕЦ ▲▲▲
 
             player.currentTime = t;
@@ -703,7 +705,7 @@ function enableQuality() {
         
         // ▼▼▼ НОВОЕ: Убираем лоадер и превью когда видео пошло ▼▼▼
         if (player.currentTime > 0.1 && !player.paused && preview.style.display !== 'none') {
-            loader.style.display = 'none';
+            hideLoaderSpinner();
             const spinner = loader.querySelector('.neo-loader-bar');
             if (spinner) spinner.style.display = 'block'; // Верни спиннер для следующего раза
             preview.style.display = 'none';
@@ -874,24 +876,12 @@ function enableQuality() {
 
         if (!player.duration) return;
 
-        // Показываем затемнение и спиннер
-        loader.style.display = 'flex';
-
-        let loaderCircle = loader.querySelector('.neo-loader-circle');
-        if (loaderCircle) {
-            // Включаем вращение
-            loaderCircle.classList.add('neo-loader-spinner');
-
-            const progressCircle = loaderCircle.querySelector('.neo-loader-circle-progress');
-            if (progressCircle) {
-                // Сбрасываем прогресс при новой перемотке
-                progressCircle.style.strokeDashoffset = '94.2';
-            }
-        }
-
-        // Обновляем позицию видео
+        // Плавно обновляем прогресс
         player.currentTime = percent * player.duration;
         fill.style.width = (percent * 100) + '%';
+
+        // Показываем тот же спиннер, что при старте
+        showLoaderSpinner(true);
     }
 
     bar.addEventListener('click', updateSeekBar);
@@ -949,13 +939,13 @@ function enableQuality() {
     wrap.addEventListener('touchstart', showControls);
     wrap.addEventListener('mousemove', showControls);
 
+    player.addEventListener('playing', () => {
+        hideLoaderSpinner();
+    });
+
     player.addEventListener('canplay', () => {
-        // Скрываем затемнение и останавливаем вращение спиннера
-        loader.style.display = 'none';
-        const loaderCircle = loader.querySelector('.neo-loader-circle');
-        if (loaderCircle) {
-            loaderCircle.classList.remove('neo-loader-spinner');
-        }
+        // Видео готово — прячем спиннер и затемнение
+        hideLoaderSpinner();
     });
 }
 
