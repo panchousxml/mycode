@@ -90,9 +90,40 @@ function runNeoPlayer(wrap, wrapIndex) {
     controls.style.display = 'none';
     disableQuality();
 
+  // ЛОГИКА ВОССТАНОВЛЕНИЯ ПОЗИЦИИ
     const savedPos = localStorage.getItem('neo_pos_' + wrapIndex);
     if (savedPos) {
-        player.currentTime = parseFloat(savedPos);
+        // Для ВТОРОГО видео (короткое, 15 сек) - всегда сбрасываем
+        if (wrapIndex === 1) {
+            console.log('🔄 Player 2: Short video, position reset to start');
+            player.currentTime = 0;
+        } 
+        // Для ПЕРВОГО видео (длинное)
+        else {
+            const pos = parseFloat(savedPos);
+            // Поскольку duration может быть еще не загружена (NaN), мы не можем точно проверить "до конца".
+            // Но мы знаем длительность первого видео (3 минуты = 180 сек).
+            // Можно сделать проще: если позиция > 170 сек (конец видео), сбрасываем.
+            // Либо, надежнее: не восстанавливаем тут, а сохраняем во временную переменную
+            // и применяем в 'loadedmetadata'.
+            
+            // ПРОСТОЙ ВАРИАНТ (предполагаем, что видео ~3 мин):
+            // Если сохранено больше 200 сек (мусор) или меньше 10 до конца...
+            // Лучше сделать проверку после загрузки метаданных:
+            
+            player.addEventListener('loadedmetadata', () => {
+                const duration = player.duration;
+                const timeLeft = duration - pos;
+                
+                if (timeLeft < 10) {
+                    console.log('🔄 Player 1: Near end (<10s), resetting to start');
+                    player.currentTime = 0;
+                } else {
+                    console.log(`🔄 Player 1: Restoring position ${pos}s`);
+                    player.currentTime = pos;
+                }
+            }, { once: true });
+        }
     }
 
     bigPlay.addEventListener('click', startVideo);
