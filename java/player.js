@@ -140,7 +140,9 @@ function runNeoPlayer(wrap, wrapIndex) {
         bigPlay.style.display = 'none';
         // Превью ОСТАЕТСЯ видимым
         loader.style.display = 'flex';
-        loaderText.innerText = '0%';
+        const spinner = loader.querySelector('.neo-loader-bar');
+        if (spinner) spinner.style.display = 'none'; // Скрываем спиннер, оставляем только текст
+        loaderText.innerText = '5%'; // ▼ НАЧИНАЕМ С 5%, не с 0%
         clearTimeout(pauseTimeout);
         disableQuality();
 
@@ -383,10 +385,8 @@ function showControlsAndPlay() {
                 ? player.buffered.end(player.buffered.length - 1) - player.currentTime 
                 : 0;
             
-            // 1. Определяем базовую цель буферизации
             let targetBuffer = (wrapIndex === 1) ? 4 : 7;
             
-            // 2. Корректируем цель, если мы близко к концу видео
             if (player.duration && isFinite(player.duration)) {
                 const remaining = player.duration - player.currentTime;
                 if (remaining < targetBuffer) {
@@ -394,20 +394,19 @@ function showControlsAndPlay() {
                 }
             }
 
-            // 3. Проверяем, скачано ли видео полностью до конца
             const isEndBuffered = player.duration && (player.currentTime + buffered >= player.duration - 0.2);
 
-            // Если буфера МАЛО и видео НЕ скачано до конца -> ждем
             if (buffered < targetBuffer && !isEndBuffered) {
                 console.log(`⏳ Waiting for buffer: ${buffered.toFixed(2)}s / ${targetBuffer.toFixed(2)}s`);
                 loader.style.display = 'flex';
+                
+                let lastDisplayedPercent = 5; // Помним последний показанный процент
                 
                 const checkBuffer = setInterval(() => {
                     const curBuf = player.buffered.length > 0 
                         ? player.buffered.end(player.buffered.length - 1) - player.currentTime 
                         : 0;
                     
-                    // Пересчитываем цель динамически (вдруг duration обновилась)
                     let curTarget = targetBuffer;
                     if (player.duration && (player.duration - player.currentTime) < curTarget) {
                         curTarget = Math.max(0, (player.duration - player.currentTime) - 0.1);
@@ -415,22 +414,31 @@ function showControlsAndPlay() {
                     
                     const curIsEnd = player.duration && (player.currentTime + curBuf >= player.duration - 0.2);
 
-                    console.log(`⏳ Buffering... ${curBuf.toFixed(2)}s / ${curTarget.toFixed(2)}s`);
-
-                    // ▼▼▼ НОВОЕ: Показываем процент ▼▼▼
+                    // ▼▼▼ НОВОЕ: Показываем только если процент растет (не падает назад) ▼▼▼
                     let percent = 0;
                     if (curTarget > 0) {
                         percent = Math.min(100, Math.round((curBuf / curTarget) * 100));
                     } else {
                         percent = 100;
                     }
-                    loaderText.innerText = `Загрузка ${percent}%`;
+                    
+                    // Процент всегда растет или остается, но не падает
+                    if (percent > lastDisplayedPercent) {
+                        lastDisplayedPercent = percent;
+                        loaderText.innerText = `Загрузка ${percent}%`;
+                    } else if (lastDisplayedPercent < 95) {
+                        // Если процент не растет, медленно добавляем +1% каждую итерацию (до 95%)
+                        lastDisplayedPercent = Math.min(95, lastDisplayedPercent + 1);
+                        loaderText.innerText = `Загрузка ${lastDisplayedPercent}%`;
+                    }
                     // ▲▲▲ КОНЕЦ ▲▲▲
+
+                    console.log(`⏳ Buffering... ${curBuf.toFixed(2)}s / ${curTarget.toFixed(2)}s`);
 
                     if (curBuf >= curTarget || curIsEnd) {
                         clearInterval(checkBuffer);
                         console.log(`✅ Buffer ready (${curBuf.toFixed(2)}s), starting play`);
-                        loaderText.innerText = 'Запуск...';
+                        loaderText.innerText = '100%';
                         
                         player.play()
                             .then(() => console.log('✅ play() resolved'))
@@ -441,8 +449,7 @@ function showControlsAndPlay() {
                 return;
             }
             
-            // Если буфер достаточен — играем сразу
-            loaderText.innerText = 'Запуск...';
+            loaderText.innerText = '100%';
             player.play()
                 .then(() => console.log('✅ play() resolved'))
                 .catch(err => console.error('❌ play() failed:', err));
@@ -520,11 +527,21 @@ function enableQuality() {
         const wasPaused = player.paused;
         const t = player.currentTime;
 
+        // ▼▼▼ НОВОЕ: Показываем лоадер при переключении ▼▼▼
+        loader.style.display = 'flex';
+        loaderText.innerText = 'Переключение...';
+        // ▲▲▲ КОНЕЦ ▲▲▲
+
         hlsInstance.currentLevel = levelIndex;
 
         const onFragChanged = () => {
             console.log("📌 Fragment changed, restoring position:", t);
             player.currentTime = t;
+            
+            // ▼▼▼ НОВОЕ: Скрываем лоадер когда фрагмент загрузился ▼▼▼
+            loader.style.display = 'none';
+            // ▲▲▲ КОНЕЦ ▲▲▲
+            
             if (!wasPaused) {
                 player.play().catch(err => {
                     console.error("❌ play() after quality change failed:", err);
@@ -545,6 +562,8 @@ function enableQuality() {
         // ▼▼▼ НОВОЕ: Убираем лоадер и превью когда видео пошло ▼▼▼
         if (player.currentTime > 0.1 && !player.paused && preview.style.display !== 'none') {
             loader.style.display = 'none';
+            const spinner = loader.querySelector('.neo-loader-bar');
+            if (spinner) spinner.style.display = 'block'; // Верни спиннер для следующего раза
             preview.style.display = 'none';
         }
         // ▲▲▲ КОНЕЦ ▲▲▲
