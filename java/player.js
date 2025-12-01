@@ -866,6 +866,18 @@ function enableQuality() {
         const percent = Math.max(0, Math.min(1, x / rect.width));
 
         if (player.duration) {
+            // Показать спиннер при перемотке
+            loader.style.display = 'flex';
+
+            let loaderCircle = loader.querySelector('.neo-loader-circle');
+            if (loaderCircle) {
+                loaderCircle.classList.add('neo-loader-spinner');
+                const progressCircle = loaderCircle.querySelector('.neo-loader-circle-progress');
+                if (progressCircle) {
+                    progressCircle.style.strokeDashoffset = '94.2';
+                }
+            }
+
             player.currentTime = percent * player.duration;
             fill.style.width = (percent * 100) + '%';
         }
@@ -925,6 +937,15 @@ function enableQuality() {
 
     wrap.addEventListener('touchstart', showControls);
     wrap.addEventListener('mousemove', showControls);
+
+    player.addEventListener('canplay', () => {
+        // Когда после перемотки буфер подгрузился — убираем спиннер
+        loader.style.display = 'none';
+        const loaderCircle = loader.querySelector('.neo-loader-circle');
+        if (loaderCircle) {
+            loaderCircle.classList.remove('neo-loader-spinner');
+        }
+    });
 }
 
 function canPlayNativeHls() {
