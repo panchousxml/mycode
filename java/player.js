@@ -139,9 +139,28 @@ function runNeoPlayer(wrap, wrapIndex) {
 
         bigPlay.style.display = 'none';
         loader.style.display = 'flex';
-        loaderText.innerText = '5%';
         clearTimeout(pauseTimeout);
         disableQuality();
+
+        // ▼▼▼ НОВОЕ: Создаем спиннер если его нет ▼▼▼
+        let loaderCircle = loader.querySelector('.neo-loader-circle');
+        if (!loaderCircle) {
+            loaderCircle = document.createElement('div');
+            loaderCircle.className = 'neo-loader-circle';
+            loaderCircle.innerHTML = `
+                <svg viewBox="0 0 60 60">
+                    <circle class="neo-loader-circle-bg" cx="30" cy="30" r="15"></circle>
+                    <circle class="neo-loader-circle-progress" cx="30" cy="30" r="15"></circle>
+                </svg>
+            `;
+            loader.insertBefore(loaderCircle, loaderText);
+        }
+        
+        // Сбрасываем прогресс в начало
+        const progressCircle = loaderCircle.querySelector('.neo-loader-circle-progress');
+        progressCircle.style.strokeDashoffset = '94.2';
+        loaderText.innerText = 'Загрузка...';
+        // ▲▲▲ КОНЕЦ ▲▲▲
 
         if (hlsInstance) {
             hlsInstance.destroy();
@@ -173,28 +192,38 @@ function runNeoPlayer(wrap, wrapIndex) {
                 console.log('📡 Manifest parsing started...');
             });
 
-            // ▼▼▼ НОВОЕ: События загрузки сегментов (работают ДО манифеста) ▼▼▼
-            let initialLoadProgress = 5;
+            // ▼▼▼ НОВОЕ: Обновляем прогресс спиннера ▼▼▼
+            let loadProgress = 0;
+            
+            const updateProgressCircle = (percent) => {
+                const offset = 94.2 * (1 - percent / 100);
+                progressCircle.style.strokeDashoffset = offset;
+            };
+            
+            // Фейк-прогресс в начале
+            const fakeProgress = setInterval(() => {
+                if (loadProgress < 20) {
+                    loadProgress += Math.random() * 5;
+                    updateProgressCircle(Math.min(20, loadProgress));
+                } else {
+                    clearInterval(fakeProgress);
+                }
+            }, 300);
             
             hlsInstance.on(Hls.Events.FRAGMENT_LOADING, () => {
-                initialLoadProgress = Math.max(15, initialLoadProgress);
-                loaderText.innerText = `${Math.round(initialLoadProgress)}%`;
+                loadProgress = Math.max(20, loadProgress);
+                updateProgressCircle(loadProgress);
             });
             
             hlsInstance.on(Hls.Events.FRAGMENT_LOADED, () => {
-                initialLoadProgress = Math.min(90, initialLoadProgress + 12);
-                loaderText.innerText = `${Math.round(initialLoadProgress)}%`;
+                loadProgress = Math.min(85, loadProgress + 15);
+                updateProgressCircle(loadProgress);
             });
             
-            // Медленный фейк-прогресс пока ничего не загружается
-            const fakeInitialProgress = setInterval(() => {
-                if (initialLoadProgress < 20 && manifestReady === false) {
-                    initialLoadProgress += Math.random() * 3;
-                    loaderText.innerText = `${Math.round(initialLoadProgress)}%`;
-                } else {
-                    clearInterval(fakeInitialProgress);
-                }
-            }, 400);
+            hlsInstance.on(Hls.Events.FRAG_BUFFERED, () => {
+                loadProgress = Math.min(90, loadProgress + 5);
+                updateProgressCircle(loadProgress);
+            });
             // ▲▲▲ КОНЕЦ ▲▲▲
 
             hlsInstance.on(Hls.Events.MANIFEST_PARSED, onManifestParsed);
@@ -369,44 +398,53 @@ if (wrapIndex === 0) {
 
     function onHlsError(event, data) {
         console.error('❌ HLS ERROR:', data?.type, data?.details, data);
-        
-        // ▼▼▼ НОВОЕ: Показываем спиннер при stall ▼▼▼
+
         if (data?.type === 'mediaError' && (data?.details === 'bufferStalledError' || data?.details === 'bufferNudgeOnStall')) {
             console.log('⚠️ Buffer stall detected, showing loader');
             loader.style.display = 'flex';
             loaderText.innerText = 'Загрузка...';
             
-            // Медленно растущий фейк-прогресс
-            let stallProgress = 10;
-            const stallProgressInterval = setInterval(() => {
-                if (stallProgress < 90) {
-                    stallProgress += Math.random() * 5;
-                    stallProgress = Math.min(90, stallProgress);
-                    loaderText.innerText = `Загрузка ${Math.round(stallProgress)}%`;
-                }
-            }, 400);
+            // ▼▼▼ НОВОЕ: Спиннер для stall ▼▼▼
+            let loaderCircle = loader.querySelector('.neo-loader-circle');
+            if (loaderCircle) {
+                const progressCircle = loaderCircle.querySelector('.neo-loader-circle-progress');
+                progressCircle.style.strokeDashoffset = '94.2';
+                
+                let stallProgress = 10;
+                const updateStallProgress = (percent) => {
+                    const offset = 94.2 * (1 - percent / 100);
+                    progressCircle.style.strokeDashoffset = offset;
+                };
+                
+                const stallInterval = setInterval(() => {
+                    if (stallProgress < 90) {
+                        stallProgress += Math.random() * 6;
+                        updateStallProgress(Math.min(90, stallProgress));
+                    }
+                }, 400);
+                
+                const onCanPlay = () => {
+                    clearInterval(stallInterval);
+                    updateStallProgress(100);
+                    setTimeout(() => {
+                        loader.style.display = 'none';
+                    }, 200);
+                    console.log('✅ Buffer recovered');
+                    player.removeEventListener('canplay', onCanPlay);
+                };
+                player.addEventListener('canplay', onCanPlay);
+                
+                setTimeout(() => {
+                    clearInterval(stallInterval);
+                }, 15000);
+            }
+            // ▲▲▲ КОНЕЦ ▲▲▲
             
-            // Очищаем интервал через 15 сек (на случай если зависнет)
-            setTimeout(() => {
-                clearInterval(stallProgressInterval);
-            }, 15000);
-            
-            // Слушаем когда буфер восстановился
-            const onCanPlay = () => {
-                clearInterval(stallProgressInterval);
-                loader.style.display = 'none';
-                console.log('✅ Buffer recovered');
-                player.removeEventListener('canplay', onCanPlay);
-            };
-            player.addEventListener('canplay', onCanPlay);
-            
-            // Если не fatal - пытаемся восстановиться
             if (!data || data.fatal !== true) {
                 return;
             }
         }
-        // ▲▲▲ КОНЕЦ ▲▲▲
-        
+
         if (!data || data.fatal !== true) return;
         switch (data.type) {
             case Hls.ErrorTypes.NETWORK_ERROR:
@@ -586,17 +624,35 @@ function enableQuality() {
         const wasPaused = player.paused;
         const t = player.currentTime;
 
-        // ▼▼▼ НОВОЕ: Показываем лоадер с прогрессом ▼▼▼
+        // ▼▼▼ НОВОЕ: Показываем спиннер при переключении ▼▼▼
         loader.style.display = 'flex';
-        loaderText.innerText = '5%'; // Стартуем с 5%
-        let qualitySwitchProgress = 5;
+        let loaderCircle = loader.querySelector('.neo-loader-circle');
+        if (!loaderCircle) {
+            loaderCircle = document.createElement('div');
+            loaderCircle.className = 'neo-loader-circle';
+            loaderCircle.innerHTML = `
+                <svg viewBox="0 0 60 60">
+                    <circle class="neo-loader-circle-bg" cx="30" cy="30" r="15"></circle>
+                    <circle class="neo-loader-circle-progress" cx="30" cy="30" r="15"></circle>
+                </svg>
+            `;
+            loader.insertBefore(loaderCircle, loaderText);
+        }
         
-        // Фейковый прогресс, который растет медленно
-        const fakeProgressInterval = setInterval(() => {
-            if (qualitySwitchProgress < 95) {
-                qualitySwitchProgress += Math.random() * 8; // Random прирост 0-8%
-                qualitySwitchProgress = Math.min(95, qualitySwitchProgress);
-                loaderText.innerText = `${Math.round(qualitySwitchProgress)}%`;
+        const progressCircle = loaderCircle.querySelector('.neo-loader-circle-progress');
+        progressCircle.style.strokeDashoffset = '94.2';
+        loaderText.innerText = 'Переключение...';
+        
+        let qualityProgress = 0;
+        const updateProgress = (percent) => {
+            const offset = 94.2 * (1 - percent / 100);
+            progressCircle.style.strokeDashoffset = offset;
+        };
+        
+        const qualityFakeProgress = setInterval(() => {
+            if (qualityProgress < 40) {
+                qualityProgress += Math.random() * 8;
+                updateProgress(Math.min(40, qualityProgress));
             }
         }, 300);
         // ▲▲▲ КОНЕЦ ▲▲▲
@@ -605,15 +661,17 @@ function enableQuality() {
 
         const onFragChanged = () => {
             console.log("📌 Fragment changed, restoring position:", t);
-            
-            // ▼▼▼ НОВОЕ: Останавливаем фейк-прогресс ▼▼▼
-            clearInterval(fakeProgressInterval);
-            loaderText.innerText = '100%';
+
+            // ▼▼▼ НОВОЕ: Заполняем на 100% и закрываем ▼▼▼
+            clearInterval(qualityFakeProgress);
+            updateProgress(100);
+            setTimeout(() => {
+                loader.style.display = 'none';
+            }, 200);
             // ▲▲▲ КОНЕЦ ▲▲▲
-            
+
             player.currentTime = t;
-            loader.style.display = 'none';
-            
+
             if (!wasPaused) {
                 player.play().catch(err => {
                     console.error("❌ play() after quality change failed:", err);
