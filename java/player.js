@@ -29,10 +29,6 @@ function checkPlayerReady(wrappers) {
     initNeoPlayer(wrappers);
 }
 
-function initNeoPlayer(wrappers) {
-    wrappers.forEach((wrap, index) => runNeoPlayer(wrap, index));
-}
-
 function runNeoPlayer(wrap, wrapIndex) {
     let hlsInstance = null;
     let manifestReady = false;
@@ -45,6 +41,15 @@ function runNeoPlayer(wrap, wrapIndex) {
     const preview = wrap.querySelector('.neo-preview');
     const bigPlay = wrap.querySelector('.neo-big-play');
     const loader = wrap.querySelector('.neo-loader');
+
+    // Создаем элемент для текста процентов
+    let loaderText = loader.querySelector('.neo-loader-text');
+    if (!loaderText) {
+        loaderText = document.createElement('div');
+        loaderText.className = 'neo-loader-text';
+        loader.appendChild(loaderText);
+    }
+
     player = wrap.querySelector('.neo-video');
     const controls = wrap.querySelector('.neo-controls');
     const btnPlay = wrap.querySelector('.neo-play');
@@ -89,7 +94,6 @@ function runNeoPlayer(wrap, wrapIndex) {
     player.style.display = 'none';
     controls.style.display = 'none';
     disableQuality();
-
   // ЛОГИКА ВОССТАНОВЛЕНИЯ ПОЗИЦИИ
     const savedPos = localStorage.getItem('neo_pos_' + wrapIndex);
     if (savedPos) {
