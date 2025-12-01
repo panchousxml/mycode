@@ -771,8 +771,21 @@ function runNeoPlayer(wrap, wrapIndex) {
             controls.style.display = 'block';
             player.style.display = 'block';
             localStorage.removeItem('neo_pos_' + wrapIndex);
-            showLoaderSpinner(true);
-            player.play().catch(err => console.error('❌ replay failed:', err));
+
+            const { progressCircle } = showLoaderSpinner(true);
+            let replayProgress = 0;
+            const replayFakeProgress = setInterval(() => {
+                if (replayProgress < 40) {
+                    replayProgress += Math.random() * 8;
+                    updateProgressCircle(progressCircle, Math.min(40, replayProgress));
+                }
+            }, 300);
+
+            player.play().then(() => {
+                clearInterval(replayFakeProgress);
+                updateProgressCircle(progressCircle, 100);
+                setTimeout(() => hideLoaderSpinner(), 150);
+            }).catch(err => console.error('❌ replay failed:', err));
         });
     }
 
