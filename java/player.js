@@ -724,7 +724,7 @@ function enableQuality() {
                     console.log('⏸️ Stopping HLS load');
                     hlsInstance.stopLoad();
                 }
-            }, 2000);
+            }, 15000);
         }
 
         // Остальная логика паузы (показ превью, большую кнопку play и т.д.)
