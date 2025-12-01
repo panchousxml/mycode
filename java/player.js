@@ -273,8 +273,24 @@ function runNeoPlayer(wrap, wrapIndex) {
 
         const levels = hlsInstance.levels;
 
-        // Индивидуальная логика старта качества: второе видео (wrapIndex === 1) → 720p, остальные → 360p
-        const targetHeight = wrapIndex === 1 ? 720 : 360;  // второе видео → 720, остальное → 360
+        // Для второго видео сразу выбираем 720p, без промежуточных уровней
+        if (wrapIndex === 1) {
+            const idx720 = levels.findIndex(l => l.height === 720);
+            if (idx720 !== -1) return idx720;
+
+            let fallback = levels.length - 1;
+            for (let i = levels.length - 1; i >= 0; i--) {
+                if (levels[i].height < 720) {
+                    fallback = i;
+                    break;
+                }
+            }
+
+            return fallback;
+        }
+
+        // Индивидуальная логика старта качества: остальные видео → 360p
+        const targetHeight = 360;
         console.log(`🎯 Target quality for player ${wrapIndex}:`, targetHeight);
 
         let idx = levels.findIndex(l => l.height === targetHeight);
