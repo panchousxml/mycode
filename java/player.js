@@ -326,58 +326,79 @@ function showControlsAndPlay() {
             ? player.buffered.end(player.buffered.length - 1) - player.currentTime 
             : 0;
         
-        // НОВОЕ: Для второго плеера (index 1) ждем 0, для первого - 7 секунд
-        const MIN_SAFE_BUFFER = (wrapIndex === 1) ? 4 : 7; 
-        
-        if (buffered < MIN_SAFE_BUFFER) {
-            console.log(`⏳ Waiting for buffer: ${buffered.toFixed(1)}s / ${MIN_SAFE_BUFFER}s`);
-            loader.style.display = 'flex';
+        const tryPlay = () => {
+            const buffered = player.buffered.length > 0 
+                ? player.buffered.end(player.buffered.length - 1) - player.currentTime 
+                : 0;
             
-            const checkBuffer = setInterval(() => {
-                const buf = player.buffered.length > 0 
-                    ? player.buffered.end(player.buffered.length - 1) - player.currentTime 
-                    : 0;
-                
-                console.log(`⏳ Buffering... ${buf.toFixed(1)}s / ${MIN_SAFE_BUFFER}s`);
-                
-                if (buf >= MIN_SAFE_BUFFER) {
-                    clearInterval(checkBuffer);
-                    loader.style.display = 'none';
-                    console.log(`✅ Buffer ready (${buf.toFixed(1)}s), starting play`);
-                    
-                    player.play()
-                        .then(() => console.log('✅ play() resolved'))
-                        .catch(err => console.error('❌ play() failed:', err));
+            // 1. Определяем базовую цель буферизации
+            let targetBuffer = (wrapIndex === 1) ? 4 : 7;
+            
+            // 2. Корректируем цель, если мы близко к концу видео
+            if (player.duration && isFinite(player.duration)) {
+                const remaining = player.duration - player.currentTime;
+                if (remaining < targetBuffer) {
+                    // Если осталось меньше чем цель -> цель равна остатку (минус чуть-чуть для страховки)
+                    targetBuffer = Math.max(0, remaining - 0.1); 
                 }
-            }, 500);
+            }
+
+            // 3. Проверяем, скачано ли видео полностью до конца
+            const isEndBuffered = player.duration && (player.currentTime + buffered >= player.duration - 0.2);
+
+            // Если буфера МАЛО и видео НЕ скачано до конца -> ждем
+            if (buffered < targetBuffer && !isEndBuffered) {
+                console.log(`⏳ Waiting for buffer: ${buffered.toFixed(2)}s / ${targetBuffer.toFixed(2)}s`);
+                loader.style.display = 'flex';
+                
+                const checkBuffer = setInterval(() => {
+                    const curBuf = player.buffered.length > 0 
+                        ? player.buffered.end(player.buffered.length - 1) - player.currentTime 
+                        : 0;
+                    
+                    // Пересчитываем цель динамически (вдруг duration обновилась)
+                    let curTarget = targetBuffer;
+                    if (player.duration && (player.duration - player.currentTime) < curTarget) {
+                        curTarget = Math.max(0, (player.duration - player.currentTime) - 0.1);
+                    }
+                    
+                    const curIsEnd = player.duration && (player.currentTime + curBuf >= player.duration - 0.2);
+
+                    console.log(`⏳ Buffering... ${curBuf.toFixed(2)}s / ${curTarget.toFixed(2)}s`);
+
+                    if (curBuf >= curTarget || curIsEnd) {
+                        clearInterval(checkBuffer);
+                        console.log(`✅ Buffer ready (${curBuf.toFixed(2)}s), starting play`);
+                        loader.style.display = 'none';
+                        
+                        player.play()
+                            .then(() => console.log('✅ play() resolved'))
+                            .catch(err => console.error('❌ play() failed:', err));
+                    }
+                }, 500);
+                
+                return;
+            }
             
-            return;
+            // Если буфер достаточен — играем сразу
+            loader.style.display = 'none';
+            player.play()
+                .then(() => console.log('✅ play() resolved'))
+                .catch(err => console.error('❌ play() failed:', err));
+        };
+
+        if (player.readyState >= 2) {
+            tryPlay();
+        } else {
+            // Используем только canplay, чтобы не дублировать вызовы
+            const onCanPlay = () => {
+                console.log('📥 canplay fired, trying play');
+                tryPlay();
+            };
+            player.addEventListener('canplay', onCanPlay, { once: true });
         }
-        
-        // Если буфер уже есть или это второй плеер — играем сразу
-        loader.style.display = 'none'; // Убедимся что лоадер скрыт
-        player.play()
-            .then(() => console.log('✅ play() resolved'))
-            .catch(err => console.error('❌ play() failed:', err));
-    };
-
-    if (player.readyState >= 2) {
-        tryPlay();
-    } else {
-        const onLoadedData = () => {
-            console.log('📥 loadeddata fired, trying play');
-            tryPlay();
-        };
-
-        const onCanPlay = () => {
-            console.log('📥 canplay fired, trying play');
-            tryPlay();
-        };
-
-        player.addEventListener('loadeddata', onLoadedData, { once: true });
-        player.addEventListener('canplay', onCanPlay, { once: true });
     }
-}
+
     function isPreviewVisible() {
         return preview.style.display === 'block' && bigPlay.style.display === 'flex';
     }
