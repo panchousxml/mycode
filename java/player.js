@@ -871,14 +871,36 @@ function enableQuality() {
         const x = clientX - rect.left;
         const percent = Math.max(0, Math.min(1, x / rect.width));
 
-        if (player.duration) {
-            showLoaderSpinner(true);
+        if (!player.duration) return;
 
-            // Плавно обновляем прогресс
-            player.currentTime = percent * player.duration;
-            fill.style.width = (percent * 100) + '%';
+        const { progressCircle } = showLoaderSpinner(true) || {};
+
+        if (seekLoaderInterval) {
+            clearInterval(seekLoaderInterval);
+            seekLoaderInterval = null;
         }
+
+        let seekProgress = 0;
+
+        const updateSeekProgress = (p) => {
+            if (!progressCircle) return;
+            const offset = 94.2 * (1 - p / 100);
+            progressCircle.style.strokeDashoffset = offset;
+        };
+
+        // Фейковый прогресс во время ожидания после перемотки
+        seekLoaderInterval = setInterval(() => {
+            if (seekProgress < 85) {
+                seekProgress += 5;
+                updateSeekProgress(seekProgress);
+            }
+        }, 300);
+
+        player.currentTime = percent * player.duration;
+        fill.style.width = (percent * 100) + '%';
     }
+
+    let seekLoaderInterval = null;
 
     bar.addEventListener('click', updateSeekBar);
 
@@ -935,13 +957,20 @@ function enableQuality() {
     wrap.addEventListener('touchstart', showControls);
     wrap.addEventListener('mousemove', showControls);
 
-    player.addEventListener('playing', () => {
+    function stopSeekLoader() {
+        if (seekLoaderInterval) {
+            clearInterval(seekLoaderInterval);
+            seekLoaderInterval = null;
+        }
         hideLoaderSpinner();
-    });
+    }
 
     player.addEventListener('canplay', () => {
-        // Видео готово — прячем спиннер и затемнение
-        hideLoaderSpinner();
+        stopSeekLoader();
+    });
+
+    player.addEventListener('playing', () => {
+        stopSeekLoader();
     });
 }
 
