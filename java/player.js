@@ -198,8 +198,10 @@ function runNeoPlayer(wrap, wrapIndex) {
             let loadProgress = 0;
             
             const updateProgressCircle = (percent) => {
-                const offset = 94.2 * (1 - percent / 100);
-                progressCircle.style.strokeDashoffset = offset;
+                requestAnimationFrame(() => {
+                    const offset = 94.2 * (1 - percent / 100);
+                    progressCircle.style.strokeDashoffset = offset;
+                });
             };
             
             // Фейк-прогресс в начале
@@ -415,8 +417,10 @@ if (wrapIndex === 0) {
                 
                 let stallProgress = 10;
                 const updateStallProgress = (percent) => {
-                    const offset = 94.2 * (1 - percent / 100);
-                    progressCircle.style.strokeDashoffset = offset;
+                    requestAnimationFrame(() => {
+                        const offset = 94.2 * (1 - percent / 100);
+                        progressCircle.style.strokeDashoffset = offset;
+                    });
                 };
                 
                 const stallInterval = setInterval(() => {
@@ -650,8 +654,10 @@ function enableQuality() {
 
         let qualityProgress = 0;
         const updateProgress = (percent) => {
-            const offset = 94.2 * (1 - percent / 100);
-            progressCircle.style.strokeDashoffset = offset;
+            requestAnimationFrame(() => {
+                const offset = 94.2 * (1 - percent / 100);
+                progressCircle.style.strokeDashoffset = offset;
+            });
         };
         
         const qualityFakeProgress = setInterval(() => {
