@@ -300,6 +300,29 @@ if (wrapIndex === 0) {
     console.log('🌈 Player 1: Quality upgrade blocked until 8s buffer');
 }
 
+    // ▼▼▼ НОВОЕ: Показываем прогресс загрузки сегментов ▼▼▼
+    if (wrapIndex === 0) {
+        let downloadProgress = 0; // 0-100%
+        
+        hlsInstance.on(Hls.Events.FRAGMENT_LOADING, () => {
+            downloadProgress = Math.max(20, downloadProgress);
+        });
+        
+        hlsInstance.on(Hls.Events.FRAGMENT_LOADED, () => {
+            downloadProgress = Math.min(95, downloadProgress + 15);
+            if (loaderText && loader.style.display === 'flex') {
+                loaderText.innerText = `Загрузка ${downloadProgress}%`;
+            }
+        });
+        
+        hlsInstance.on(Hls.Events.FRAG_BUFFERED, () => {
+            downloadProgress = Math.min(99, downloadProgress + 5);
+            if (loaderText && loader.style.display === 'flex') {
+                loaderText.innerText = `Загрузка ${downloadProgress}%`;
+            }
+        });
+    }
+    // ▲▲▲ КОНЕЦ ▲▲▲
 
     if (wrapIndex === 1) {
         hlsInstance.startLevel = optimalLevel;
@@ -320,6 +343,7 @@ if (wrapIndex === 0) {
     updateQualityLabel();
     showControlsAndPlay();
 }
+
     function onHlsError(event, data) {
         console.error('❌ HLS ERROR:', data?.type, data?.details, data);
         if (!data || data.fatal !== true) return;
