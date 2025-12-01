@@ -714,12 +714,20 @@ function enableQuality() {
     player.addEventListener('pause', () => {
         if (isDragging) return;
 
-        // Останавливаем загрузку HLS при паузе
         if (hlsInstance && manifestReady) {
-            console.log('⏸️ Pause detected, stopping HLS load');
-            hlsInstance.stopLoad();
+            console.log('⏸️ Pause detected, will stop HLS load after 2 sec');
+
+            // Даём 2 сек на загрузку пары сегментов
+            clearTimeout(pauseTimeout);
+            pauseTimeout = setTimeout(() => {
+                if (player.paused && hlsInstance) {
+                    console.log('⏸️ Stopping HLS load');
+                    hlsInstance.stopLoad();
+                }
+            }, 2000);
         }
 
+        // Остальная логика паузы (показ превью, большую кнопку play и т.д.)
         clearTimeout(pauseTimeout);
         pauseTimeout = setTimeout(() => {
             if (player.paused) {
