@@ -310,45 +310,82 @@ if (wrapIndex === 0) {
         }
     }
 
-    function showControlsAndPlay() {
-        loader.style.display = 'none';
-        player.style.display = 'block';
-        controls.style.display = 'block';
+function showControlsAndPlay() {
+    loader.style.display = 'none';
+    player.style.display = 'block';
+    controls.style.display = 'block';
 
-        console.log('🎯 showControlsAndPlay called', {
-            readyState: player.readyState,
-            duration: player.duration,
-            networkState: player.networkState
-        });
+    console.log('🎯 showControlsAndPlay called', {
+        readyState: player.readyState,
+        duration: player.duration,
+        networkState: player.networkState
+    });
 
-        const tryPlay = () => {
-            player.play()
-              .then(() => {
-                  console.log('✅ play() resolved, paused =', player.paused);
-              })
-              .catch(err => {
-                  console.error('❌ play() failed:', err);
-              });
+    const tryPlay = () => {
+        // ← НОВОЕ: Проверяем буфер перед play
+        const buffered = player.buffered.length > 0 
+            ? player.buffered.end(player.buffered.length - 1) - player.currentTime 
+            : 0;
+        
+        const MIN_BUFFER_FOR_PLAY = 6;  // Нужно минимум 6 сек буфера перед стартом
+        
+        if (buffered < MIN_BUFFER_FOR_PLAY) {
+            console.log(`⏳ Waiting for buffer: ${buffered.toFixed(1)}s / ${MIN_BUFFER_FOR_PLAY}s`);
+            loader.style.display = 'flex';  // Показываем loader обратно
+            
+            // Ждем пока буфер накопится
+            const checkBuffer = setInterval(() => {
+                const buf = player.buffered.length > 0 
+                    ? player.buffered.end(player.buffered.length - 1) - player.currentTime 
+                    : 0;
+                
+                console.log(`⏳ Buffering... ${buf.toFixed(1)}s / ${MIN_BUFFER_FOR_PLAY}s`);
+                
+                if (buf >= MIN_BUFFER_FOR_PLAY) {
+                    clearInterval(checkBuffer);
+                    loader.style.display = 'none';
+                    console.log(`✅ Buffer ready (${buf.toFixed(1)}s), starting play`);
+                    
+                    player.play()
+                        .then(() => {
+                            console.log('✅ play() resolved, paused =', player.paused);
+                        })
+                        .catch(err => {
+                            console.error('❌ play() failed:', err);
+                        });
+                }
+            }, 500);  // Проверяем каждые 500мс
+            
+            return;  // Не запускаем play сразу
+        }
+        
+        // Если буфер уже достаточный — играем сразу
+        player.play()
+            .then(() => {
+                console.log('✅ play() resolved, paused =', player.paused);
+            })
+            .catch(err => {
+                console.error('❌ play() failed:', err);
+            });
+    };
+
+    if (player.readyState >= 2) {
+        tryPlay();
+    } else {
+        const onLoadedData = () => {
+            console.log('📥 loadeddata fired, trying play');
+            tryPlay();
         };
 
-        if (player.readyState >= 2) {
+        const onCanPlay = () => {
+            console.log('📥 canplay fired, trying play');
             tryPlay();
-        } else {
-            const onLoadedData = () => {
-                console.log('📥 loadeddata fired, trying play');
-                tryPlay();
-            };
+        };
 
-            const onCanPlay = () => {
-                console.log('📥 canplay fired, trying play');
-                tryPlay();
-            };
-
-            player.addEventListener('loadeddata', onLoadedData, { once: true });
-            player.addEventListener('canplay', onCanPlay, { once: true });
-        }
+        player.addEventListener('loadeddata', onLoadedData, { once: true });
+        player.addEventListener('canplay', onCanPlay, { once: true });
     }
-
+}
     function isPreviewVisible() {
         return preview.style.display === 'block' && bigPlay.style.display === 'flex';
     }
