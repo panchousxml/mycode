@@ -137,6 +137,8 @@ function runNeoPlayer(wrap, wrapIndex) {
     let pauseStopLoadTimeout = null;
     let previewLoaded = false;
     let seekLoaderInterval = null;
+    let lastFrameTime = 0;
+    let sameTimeCounter = 0;
 
     // ─────────────────────────────────────────────────────────────
     // LOADER HELPERS
@@ -724,23 +726,39 @@ function runNeoPlayer(wrap, wrapIndex) {
             preview.style.display = 'none';
         }
 
-        // HARD FIX: force replay icon when we are at the very end but 'ended' did not fire
-        if (
-            player.duration &&
-            !player.paused &&
-            player.currentTime >= player.duration - 0.15 && // near the end
-            !player.ended &&                                // ended didn't trigger
-            replay &&
-            replay.style.display !== 'flex'
-        ) {
-            controls.style.display = 'none';
-            bigPlay.style.display = 'none';
-            preview.style.display = 'none';
-            replay.style.display = 'flex';
+        // HARD FIX FOR SHORT HLS: detect stuck playback
+        if (!player.paused && player.duration) {
+            const timeDiff = Math.abs(player.currentTime - lastFrameTime);
+            const nearEnd = player.currentTime > player.duration - 1;
+            
+            console.log(`[Video ${wrapIndex}] timeupdate: currentTime=${player.currentTime.toFixed(2)}, duration=${player.duration.toFixed(2)}, diff=${timeDiff.toFixed(4)}, nearEnd=${nearEnd}, sameCounter=${sameTimeCounter}`);
+
+            if (timeDiff < 0.01) {
+                sameTimeCounter++;
+                console.log(`  → Time stuck! Counter: ${sameTimeCounter}`);
+                
+                if (sameTimeCounter >= 3 && nearEnd) {
+                    console.log(`  → DETECTED END! Showing replay.`);
+                    player.pause();
+                    controls.style.display = 'none';
+                    bigPlay.style.display = 'none';
+                    preview.style.display = 'none';
+                    if (replay) replay.style.display = 'flex';
+                    sameTimeCounter = 0;
+                }
+            } else {
+                if (sameTimeCounter > 0) {
+                    console.log(`  → Time moved, reset counter`);
+                }
+                lastFrameTime = player.currentTime;
+                sameTimeCounter = 0;
+            }
         }
     });
 
     player.addEventListener('ended', () => {
+        console.log(`[Video ${wrapIndex}] ENDED event fired! currentTime=${player.currentTime.toFixed(2)}, duration=${player.duration.toFixed(2)}`);
+        
         controls.style.display = 'none';
         bigPlay.style.display = 'none';
         preview.style.display = 'none';
@@ -781,6 +799,8 @@ function runNeoPlayer(wrap, wrapIndex) {
     });
 
     player.addEventListener('play', () => {
+        console.log(`[Video ${wrapIndex}] PLAY event`);
+        
         if (pauseStopLoadTimeout) {
             clearTimeout(pauseStopLoadTimeout);
             pauseStopLoadTimeout = null;
