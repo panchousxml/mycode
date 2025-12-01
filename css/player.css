@@ -38,12 +38,14 @@
     z-index: 20;
 }
 
+/* Спиннер-обёртка */
 .neo-loader-circle {
     width: 50px;
     height: 50px;
     position: relative;
 }
 
+/* SVG внутри круга */
 .neo-loader-circle svg {
     width: 100%;
     height: 100%;
@@ -51,12 +53,14 @@
     will-change: transform;
 }
 
+/* Задний круг */
 .neo-loader-circle-bg {
     fill: none;
     stroke: rgba(255, 255, 255, 0.15);
     stroke-width: 3;
 }
 
+/* Круг прогресса */
 .neo-loader-circle-progress {
     fill: none;
     stroke: #fff;
@@ -67,13 +71,7 @@
     will-change: stroke-dashoffset;
 }
 
-/* ▼▼▼ НОВОЕ: Постоянное вращение спинера ▼▼▼ */
-.neo-loader-spinner {
-    animation: spin-loader 2s linear infinite;
-    transform: translate3d(0, 0, 0);
-    backface-visibility: hidden;
-}
-
+/* Анимация вращения спиннера */
 @keyframes spin-loader {
     from {
         transform: rotate(0deg);
@@ -82,7 +80,13 @@
         transform: rotate(360deg);
     }
 }
-/* ▲▲▲ КОНЕЦ ▲▲▲ */
+
+/* Класс, который включает вращение */
+.neo-loader-spinner {
+    animation: spin-loader 2s linear infinite;
+    transform: translate3d(0, 0, 0);
+    backface-visibility: hidden;
+}
 
 .neo-loader-text {
     display: none !important;
