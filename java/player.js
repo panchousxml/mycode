@@ -3,6 +3,8 @@ document.addEventListener("DOMContentLoaded", () => {
     requestAnimationFrame(checkWrapper);
 });
 
+let preloadSetupDone = false;
+
 function checkWrapper() {
     const wrappers = document.querySelectorAll('.neo-player-wrapper');
     if (!wrappers.length) {
@@ -31,6 +33,35 @@ function checkPlayerReady(wrappers) {
 
 function initNeoPlayer(wrappers) {
     wrappers.forEach((wrap, index) => runNeoPlayer(wrap, index));
+
+    if (preloadSetupDone) return;
+    preloadSetupDone = true;
+
+    window.addEventListener('load', () => {
+        const firstWrap = document.querySelectorAll('.neo-player-wrapper')[0];
+        if (!firstWrap) return;
+
+        const firstPlayer = firstWrap.querySelector('.neo-video');
+        if (!firstPlayer) return;
+
+        let userStarted = !firstPlayer.paused || firstPlayer.currentTime > 0;
+        let stopPreload = null;
+
+        const handleUserStart = () => {
+            userStarted = true;
+            if (typeof stopPreload === 'function') {
+                stopPreload('user-start');
+            }
+        };
+
+        firstPlayer.addEventListener('play', handleUserStart, { once: true });
+
+        setTimeout(() => {
+            if (userStarted) return;
+
+            stopPreload = preloadFirstSegment(firstWrap);
+        }, 3000);
+    });
 }
 
 function runNeoPlayer(wrap, wrapIndex) {
@@ -988,6 +1019,73 @@ function enableQuality() {
     player.addEventListener('playing', () => {
         stopSeekLoader();
     });
+}
+
+function preloadFirstSegment(wrap) {
+    if (!wrap) return null;
+
+    const videoData = {
+        preview: 'https://static.tildacdn.com/vide6364-3939-4130-b261-383838353831/output_small.mp4',
+        hls: 'https://video.pskamelit.ru/3min/master.m3u8'
+    };
+
+    if (!window.Hls || !Hls.isSupported()) return null;
+
+    const tempVideo = document.createElement('video');
+    tempVideo.muted = true;
+
+    const hls = new Hls({
+        backBufferLength: 10,
+        lowLatencyMode: false
+    });
+
+    let stopTimeout = null;
+    let stopped = false;
+    let loadedSegments = 0;
+
+    const stopPreload = (reason = 'timeout') => {
+        if (stopped) return;
+        stopped = true;
+
+        if (stopTimeout) {
+            clearTimeout(stopTimeout);
+            stopTimeout = null;
+        }
+
+        try {
+            hls.stopLoad();
+        } catch (e) {
+            // тихо игнорируем, если экземпляр уже остановлен
+        }
+
+        hls.destroy();
+        tempVideo.removeAttribute('src');
+
+        console.log(`⏹️ Предзагрузка остановлена (${reason})`);
+    };
+
+    hls.on(Hls.Events.FRAG_LOADED, () => {
+        loadedSegments += 1;
+        if (loadedSegments >= 2) {
+            stopPreload('segment-limit');
+        }
+    });
+
+    hls.on(Hls.Events.ERROR, () => {
+        stopPreload('error');
+    });
+
+    hls.loadSource(videoData.hls);
+    hls.attachMedia(tempVideo);
+    hls.startLoad();
+
+    stopTimeout = setTimeout(() => {
+        stopPreload('timeout');
+    }, 7000);
+
+    console.log('🟡 Тихая предзагрузка первого сегмента запущена');
+
+    return stopPreload;
 }
 
 function canPlayNativeHls() {
