@@ -8,6 +8,7 @@
     overflow: hidden;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
+.neo-player-wrapper * { box-sizing: border-box; }
 
 /* Видео (превью и основное) */
 .neo-player-wrapper video {
@@ -18,7 +19,8 @@
     height: 100%;
     object-fit: cover;
 }
-.neo-preview { z-index: 1; }
+/* ВАЖНО: Превью теперь имеет высокий z-index чтобы перекрывать видео при загрузке */
+.neo-preview { z-index: 10; } 
 .neo-video { z-index: 2; }
 
 /* Loader */
@@ -26,11 +28,13 @@
     position: absolute;
     top: 0; left: 0;
     width: 100%; height: 100%;
-    background: rgba(0,0,0,0.5);
+    background: rgba(0,0,0,0.6); /* Чуть темнее фон для контраста текста */
     display: none;
+    flex-direction: column; /* Чтобы текст был под спиннером */
     align-items: center;
     justify-content: center;
-    z-index: 3;
+    gap: 15px; /* Отступ между спиннером и текстом */
+    z-index: 20; /* Самый высокий уровень (поверх превью) */
 }
 .neo-loader-bar {
     width: 40px; height: 40px;
@@ -38,6 +42,14 @@
     border-top: 4px solid #fff;
     border-radius: 50%;
     animation: spin 1s linear infinite;
+}
+.neo-loader-text {
+    color: #fff;
+    font-family: sans-serif;
+    font-size: 16px;
+    font-weight: 600;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+    letter-spacing: 0.5px;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
@@ -51,7 +63,7 @@
     border: 2px solid #1879AE;
     display: flex; align-items: center; justify-content: center;
     cursor: pointer; transition: all 0.25s;
-    z-index: 4;
+    z-index: 15; /* Выше превью (10), но ниже лоадера (20) */
 }
 .neo-big-play:hover {
     transform: translate(-50%, -50%) scale(1.08);
@@ -67,7 +79,7 @@
     width: 100%;
     background: linear-gradient(to top, rgba(0,0,0,0.8), transparent);
     padding: 40px 16px 16px;
-    z-index: 5;
+    z-index: 30; /* Выше лоадера */
     opacity: 1; transition: opacity 0.3s;
 }
 
@@ -186,5 +198,3 @@
     .neo-bottom { gap: 4px; }
     .neo-play-icon, .neo-fullscreen-icon, .neo-pip-icon { width: 16px; height: 16px; }
 }
-
-.neo-player-wrapper * { box-sizing: border-box; }
