@@ -1109,9 +1109,12 @@ function preloadFirstSegment(wrap) {
         stopPreload('error');
     });
 
-    hls.loadSource(videoData.hls);
+    hls.on(Hls.Events.MEDIA_ATTACHED, () => {
+        hls.loadSource(videoData.hls);
+        hls.startLoad();
+    });
+
     hls.attachMedia(tempVideo);
-    hls.startLoad();
 
     stopTimeout = setTimeout(() => {
         stopPreload('timeout');
