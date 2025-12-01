@@ -82,6 +82,7 @@ function runNeoPlayer(wrap, wrapIndex) {
     const videoData = videosData[wrapIndex];
     let isDragging = false;
     let pauseTimeout = null;
+    let pauseStopLoadTimeout = null;
     let previewLoaded = false;
 
     const previewObserver = new IntersectionObserver((entries) => {
@@ -456,8 +457,7 @@ if (wrapIndex === 0) {
         if (!data || data.fatal !== true) return;
         switch (data.type) {
             case Hls.ErrorTypes.NETWORK_ERROR:
-                console.warn('🔄 NETWORK_ERROR: Retrying...');
-                hlsInstance && hlsInstance.startLoad();
+                console.warn('🔄 NETWORK_ERROR: загрузка возобновится после play');
                 break;
             case Hls.ErrorTypes.MEDIA_ERROR:
                 console.warn('🔄 MEDIA_ERROR: Recovering...');
@@ -714,15 +714,17 @@ function enableQuality() {
     player.addEventListener('pause', () => {
         if (isDragging) return;
 
-        if (hlsInstance && manifestReady) {
-            console.log('⏸️ Pause detected, will stop HLS load after 2 sec');
+        if (pauseStopLoadTimeout) {
+            clearTimeout(pauseStopLoadTimeout);
+            pauseStopLoadTimeout = null;
+        }
 
-            // Даём 2 сек на загрузку пары сегментов
-            clearTimeout(pauseTimeout);
-            pauseTimeout = setTimeout(() => {
+        if (hlsInstance && manifestReady) {
+            console.log('⏸️ Пауза: запланирована остановка HLS через 15 секунд');
+            pauseStopLoadTimeout = setTimeout(() => {
                 if (player.paused && hlsInstance) {
-                    console.log('⏸️ Stopping HLS load');
-                    hlsInstance.stopLoad();
+                    console.log('🛑 Останавливаю загрузку сегментов после 15 секунд паузы');
+                    hlsInstance.stopLoad(); // [web:15][web:48]
                 }
             }, 15000);
         }
@@ -741,12 +743,17 @@ function enableQuality() {
     });
 
     player.addEventListener('play', () => {
+        if (pauseStopLoadTimeout) {
+            clearTimeout(pauseStopLoadTimeout);
+            pauseStopLoadTimeout = null;
+        }
+
         clearTimeout(pauseTimeout);
 
         // Возобновляем загрузку HLS при play
         if (hlsInstance && manifestReady) {
-            console.log('▶️ Play detected, starting HLS load');
-            hlsInstance.startLoad();
+            console.log('▶️ Play: возобновляю загрузку сегментов');
+            hlsInstance.startLoad(); // [web:51][web:48]
         }
     });
 
