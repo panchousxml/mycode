@@ -232,41 +232,42 @@ function runNeoPlayer(wrap, wrapIndex) {
         console.log(`📍 maxAutoLevel LOCKED to index ${maxAutoLevelIndex} (720p) - 1080p blocked for auto`);
     }
 
-    // ← НОВОЕ: Блокировка первой смены качества на 15 сек для первого плеера
-    if (wrapIndex === 0) {
-        let startTime = Date.now();
-        const QUALITY_LOCK_TIME = 15000;
-        
-        const abrController = hlsInstance.abrController;
-        const originalNextAutoLevel = Object.getOwnPropertyDescriptor(
-            Object.getPrototypeOf(abrController), 
-            'nextAutoLevel'
-        );
+// ← НОВОЕ: Блокировка повышения качества пока буфер не накопится
+if (wrapIndex === 0) {
+    const MIN_BUFFER_FOR_UPGRADE = 8;
+    
+    const abrController = hlsInstance.abrController;
+    const originalNextAutoLevel = Object.getOwnPropertyDescriptor(
+        Object.getPrototypeOf(abrController), 
+        'nextAutoLevel'
+    );
 
-        Object.defineProperty(abrController, 'nextAutoLevel', {
-            get: function() {
-                const elapsed = Date.now() - startTime;
-                if (elapsed < QUALITY_LOCK_TIME) {
-                    console.log(`🔒 Quality locked for ${(QUALITY_LOCK_TIME - elapsed) / 1000 | 0}s more`);
-                    return optimalLevel;
-                }
-                return originalNextAutoLevel.get.call(this);
-            },
-            set: function(value) {
-                const elapsed = Date.now() - startTime;
-                if (elapsed < QUALITY_LOCK_TIME) {
-                    console.log(`🔒 ABR попытался изменить, но качество заблокировано`);
-                    return;
-                }
-                if (originalNextAutoLevel.set) {
-                    originalNextAutoLevel.set.call(this, value);
-                }
-            },
-            configurable: true
-        });
+    Object.defineProperty(abrController, 'nextAutoLevel', {
+        get: function() {
+            const current = originalNextAutoLevel.get.call(this);
+            
+            const buffered = player.buffered.length > 0 
+                ? player.buffered.end(player.buffered.length - 1) - player.currentTime 
+                : 0;
+            
+            if (buffered < MIN_BUFFER_FOR_UPGRADE && current > optimalLevel) {
+                console.log(`🔒 Blocked upgrade, buffer: ${buffered.toFixed(1)}s (need ${MIN_BUFFER_FOR_UPGRADE}s)`);
+                return optimalLevel;
+            }
+            
+            return current;
+        },
+        set: function(value) {
+            if (originalNextAutoLevel.set) {
+                originalNextAutoLevel.set.call(this, value);
+            }
+        },
+        configurable: true
+    });
 
-        console.log('🌈 Player 1: Quality locked for 15 seconds');
-    }
+    console.log('🌈 Player 1: Quality upgrade blocked until 8s buffer');
+}
+
 
     if (wrapIndex === 1) {
         hlsInstance.startLevel = optimalLevel;
