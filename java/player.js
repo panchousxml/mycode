@@ -872,25 +872,26 @@ function enableQuality() {
         const x = clientX - rect.left;
         const percent = Math.max(0, Math.min(1, x / rect.width));
 
-        if (player.duration) {
-            // Показать затемнение и спиннер
-            loader.style.display = 'flex';
+        if (!player.duration) return;
 
-            let loaderCircle = loader.querySelector('.neo-loader-circle');
-            if (loaderCircle) {
-                // Включаем анимацию вращения
-                loaderCircle.classList.add('neo-loader-spinner');
+        // Показываем затемнение и спиннер
+        loader.style.display = 'flex';
 
-                const progressCircle = loaderCircle.querySelector('.neo-loader-circle-progress');
-                if (progressCircle) {
-                    // Сбрасываем прогресс в начало при новой перемотке
-                    progressCircle.style.strokeDashoffset = '94.2';
-                }
+        let loaderCircle = loader.querySelector('.neo-loader-circle');
+        if (loaderCircle) {
+            // Включаем вращение
+            loaderCircle.classList.add('neo-loader-spinner');
+
+            const progressCircle = loaderCircle.querySelector('.neo-loader-circle-progress');
+            if (progressCircle) {
+                // Сбрасываем прогресс при новой перемотке
+                progressCircle.style.strokeDashoffset = '94.2';
             }
-
-            player.currentTime = percent * player.duration;
-            fill.style.width = (percent * 100) + '%';
         }
+
+        // Обновляем позицию видео
+        player.currentTime = percent * player.duration;
+        fill.style.width = (percent * 100) + '%';
     }
 
     bar.addEventListener('click', updateSeekBar);
@@ -949,7 +950,7 @@ function enableQuality() {
     wrap.addEventListener('mousemove', showControls);
 
     player.addEventListener('canplay', () => {
-        // Когда после перемотки буфер подгрузился — убираем спиннер
+        // Скрываем затемнение и останавливаем вращение спиннера
         loader.style.display = 'none';
         const loaderCircle = loader.querySelector('.neo-loader-circle');
         if (loaderCircle) {
