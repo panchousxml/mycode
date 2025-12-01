@@ -678,8 +678,25 @@ function runNeoPlayer(wrap, wrapIndex) {
         return preview.style.display === 'block' && bigPlay.style.display === 'flex';
     }
 
+    function restartFromEndIfNeeded() {
+        // если реально в конце (или почти в конце) — считаем что это повтор
+        if (player.ended || (player.duration && player.currentTime >= player.duration - 0.1)) {
+            player.currentTime = 0;
+            if (replay) replay.style.display = 'none';
+            controls.style.display = 'block';
+            player.style.display = 'block';
+            preview.style.display = 'none';
+            localStorage.removeItem('neo_pos_' + wrapIndex);
+        }
+    }
+
     function togglePlay() {
-        player.paused ? player.play() : player.pause();
+        if (player.paused) {
+            restartFromEndIfNeeded();
+            player.play();
+        } else {
+            player.pause();
+        }
     }
 
     // Start video events
@@ -708,17 +725,16 @@ function runNeoPlayer(wrap, wrapIndex) {
             replay.style.display = 'none';
         }
 
-        if (wrapIndex === 0) {
+        if (wrapIndex === 0 && replay) {
             if (player.duration && !player.paused) {
                 const timeLeft = player.duration - player.currentTime;
-                if (timeLeft <= 1 && replay && replay.style.display !== 'flex') {
+                if (timeLeft <= 1 && replay.style.display !== 'flex') {
                     replay.style.display = 'flex';
                 }
             }
 
             if (player.duration &&
                 player.currentTime < player.duration - 1 &&
-                replay &&
                 replay.style.display === 'flex' &&
                 !player.ended) {
                 replay.style.display = 'none';
