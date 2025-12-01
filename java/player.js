@@ -138,11 +138,8 @@ function runNeoPlayer(wrap, wrapIndex) {
         console.log('🔴 startVideo CALLED');
 
         bigPlay.style.display = 'none';
-        // Превью ОСТАЕТСЯ видимым
         loader.style.display = 'flex';
-        const spinner = loader.querySelector('.neo-loader-bar');
-        if (spinner) spinner.style.display = 'none'; // Скрываем спиннер, оставляем только текст
-        loaderText.innerText = '5%'; // ▼ НАЧИНАЕМ С 5%, не с 0%
+        loaderText.innerText = '5%';
         clearTimeout(pauseTimeout);
         disableQuality();
 
@@ -175,6 +172,30 @@ function runNeoPlayer(wrap, wrapIndex) {
             hlsInstance.on(Hls.Events.MANIFEST_PARSING_STARTED, () => {
                 console.log('📡 Manifest parsing started...');
             });
+
+            // ▼▼▼ НОВОЕ: События загрузки сегментов (работают ДО манифеста) ▼▼▼
+            let initialLoadProgress = 5;
+            
+            hlsInstance.on(Hls.Events.FRAGMENT_LOADING, () => {
+                initialLoadProgress = Math.max(15, initialLoadProgress);
+                loaderText.innerText = `${Math.round(initialLoadProgress)}%`;
+            });
+            
+            hlsInstance.on(Hls.Events.FRAGMENT_LOADED, () => {
+                initialLoadProgress = Math.min(90, initialLoadProgress + 12);
+                loaderText.innerText = `${Math.round(initialLoadProgress)}%`;
+            });
+            
+            // Медленный фейк-прогресс пока ничего не загружается
+            const fakeInitialProgress = setInterval(() => {
+                if (initialLoadProgress < 20 && manifestReady === false) {
+                    initialLoadProgress += Math.random() * 3;
+                    loaderText.innerText = `${Math.round(initialLoadProgress)}%`;
+                } else {
+                    clearInterval(fakeInitialProgress);
+                }
+            }, 400);
+            // ▲▲▲ КОНЕЦ ▲▲▲
 
             hlsInstance.on(Hls.Events.MANIFEST_PARSED, onManifestParsed);
             hlsInstance.on(Hls.Events.ERROR, onHlsError);
