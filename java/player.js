@@ -718,9 +718,25 @@ function runNeoPlayer(wrap, wrapIndex) {
             fill.style.width = (player.currentTime / player.duration * 100) + '%';
         }
 
+        // Hide preview when playback actually started
         if (player.currentTime > 0.1 && !player.paused && preview.style.display !== 'none') {
             hideLoaderSpinner();
             preview.style.display = 'none';
+        }
+
+        // HARD FIX: force replay icon when we are at the very end but 'ended' did not fire
+        if (
+            player.duration &&
+            !player.paused &&
+            player.currentTime >= player.duration - 0.15 && // near the end
+            !player.ended &&                                // ended didn't trigger
+            replay &&
+            replay.style.display !== 'flex'
+        ) {
+            controls.style.display = 'none';
+            bigPlay.style.display = 'none';
+            preview.style.display = 'none';
+            replay.style.display = 'flex';
         }
     });
 
