@@ -84,7 +84,6 @@ function runNeoPlayer(wrap, wrapIndex) {
         return { loaderCircle, progressCircle };
     }
 
-    // Скрыть спиннер
     function hideLoaderSpinner() {
         if (!loader) return;
         loader.style.display = 'none';
@@ -652,16 +651,15 @@ function enableQuality() {
         const t = player.currentTime;
 
         const { progressCircle } = showLoaderSpinner(true);
-        loaderText.innerText = '';
         let qualityProgress = 0;
 
         const updateProgress = (percent) => {
             if (!progressCircle) return;
-            requestAnimationFrame(() => {
-                const offset = 94.2 * (1 - percent / 100);
-                progressCircle.style.strokeDashoffset = offset;
-            });
+            const offset = 94.2 * (1 - percent / 100);
+            progressCircle.style.strokeDashoffset = offset;
         };
+
+        loaderText.innerText = '';
 
         const qualityFakeProgress = setInterval(() => {
             if (qualityProgress < 40) {
@@ -874,14 +872,13 @@ function enableQuality() {
         const x = clientX - rect.left;
         const percent = Math.max(0, Math.min(1, x / rect.width));
 
-        if (!player.duration) return;
+        if (player.duration) {
+            showLoaderSpinner(true);
 
-        // Плавно обновляем прогресс
-        player.currentTime = percent * player.duration;
-        fill.style.width = (percent * 100) + '%';
-
-        // Показываем тот же спиннер, что при старте
-        showLoaderSpinner(true);
+            // Плавно обновляем прогресс
+            player.currentTime = percent * player.duration;
+            fill.style.width = (percent * 100) + '%';
+        }
     }
 
     bar.addEventListener('click', updateSeekBar);
