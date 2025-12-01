@@ -724,22 +724,6 @@ function runNeoPlayer(wrap, wrapIndex) {
         if (!player.ended && replay && replay.style.display === 'flex') {
             replay.style.display = 'none';
         }
-
-        if (wrapIndex === 0 && replay) {
-            if (player.duration && !player.paused) {
-                const timeLeft = player.duration - player.currentTime;
-                if (timeLeft <= 1 && replay.style.display !== 'flex') {
-                    replay.style.display = 'flex';
-                }
-            }
-
-            if (player.duration &&
-                player.currentTime < player.duration - 1 &&
-                replay.style.display === 'flex' &&
-                !player.ended) {
-                replay.style.display = 'none';
-            }
-        }
     });
 
     player.addEventListener('ended', () => {
@@ -803,6 +787,7 @@ function runNeoPlayer(wrap, wrapIndex) {
             replay.style.display = 'none';
             controls.style.display = 'block';
             player.style.display = 'block';
+            preview.style.display = 'none';
             localStorage.removeItem('neo_pos_' + wrapIndex);
 
             const { progressCircle } = showLoaderSpinner(true);
