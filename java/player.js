@@ -679,7 +679,6 @@ function runNeoPlayer(wrap, wrapIndex) {
     }
 
     function restartFromEndIfNeeded() {
-        // если видео в конце или почти в конце — считаем, что нужно повторить
         if (player.ended || (player.duration && player.currentTime >= player.duration - 0.1)) {
             player.currentTime = 0;
 
@@ -729,7 +728,9 @@ function runNeoPlayer(wrap, wrapIndex) {
         bigPlay.style.display = 'none';
         preview.style.display = 'none';
 
-        if (replay) replay.style.display = 'flex';
+        if (replay) {
+            replay.style.display = 'flex';
+        }
     });
 
     player.addEventListener('pause', () => {
@@ -783,10 +784,12 @@ function runNeoPlayer(wrap, wrapIndex) {
     if (replay) {
         replay.addEventListener('click', () => {
             player.currentTime = 0;
+
             replay.style.display = 'none';
             controls.style.display = 'block';
             player.style.display = 'block';
             preview.style.display = 'none';
+
             localStorage.removeItem('neo_pos_' + wrapIndex);
 
             const { progressCircle } = showLoaderSpinner(true);
