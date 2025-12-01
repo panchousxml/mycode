@@ -214,17 +214,18 @@ function runNeoPlayer(wrap, wrapIndex) {
                 console.log('📡 Manifest parsing started...');
             });
 
-            // ▼▼▼ НОВОЕ: Обновляем прогресс спиннера ▼▼▼
+            // ▼▼▼ ИСПРАВЛЕНО: получаем progressCircle из showLoaderSpinner ▼▼▼
             let loadProgress = 0;
-            
+            const { progressCircle } = showLoaderSpinner(false) || {};
+
             const updateProgressCircle = (percent) => {
+                if (!progressCircle) return;
                 requestAnimationFrame(() => {
                     const offset = 94.2 * (1 - percent / 100);
                     progressCircle.style.strokeDashoffset = offset;
                 });
             };
-            
-            // Фейк-прогресс в начале
+
             const fakeProgress = setInterval(() => {
                 if (loadProgress < 20) {
                     loadProgress += Math.random() * 5;
@@ -248,7 +249,7 @@ function runNeoPlayer(wrap, wrapIndex) {
                 loadProgress = Math.min(90, loadProgress + 5);
                 updateProgressCircle(loadProgress);
             });
-            // ▲▲▲ КОНЕЦ ▲▲▲
+            // ▲▲▲ КОНЕЦ ИСПРАВЛЕНИЯ ▲▲▲
 
             hlsInstance.on(Hls.Events.MANIFEST_PARSED, onManifestParsed);
             hlsInstance.on(Hls.Events.ERROR, onHlsError);
@@ -700,12 +701,10 @@ function enableQuality() {
         if (player.duration && !isDragging) {
             fill.style.width = (player.currentTime / player.duration * 100) + '%';
         }
-        
+
         // ▼▼▼ НОВОЕ: Убираем лоадер и превью когда видео пошло ▼▼▼
         if (player.currentTime > 0.1 && !player.paused && preview.style.display !== 'none') {
             hideLoaderSpinner();
-            const spinner = loader.querySelector('.neo-loader-bar');
-            if (spinner) spinner.style.display = 'block'; // Верни спиннер для следующего раза
             preview.style.display = 'none';
         }
         // ▲▲▲ КОНЕЦ ▲▲▲
