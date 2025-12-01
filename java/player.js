@@ -322,51 +322,43 @@ function showControlsAndPlay() {
     });
 
     const tryPlay = () => {
-        // ← НОВОЕ: Проверяем буфер перед play
         const buffered = player.buffered.length > 0 
             ? player.buffered.end(player.buffered.length - 1) - player.currentTime 
             : 0;
         
-        const MIN_BUFFER_FOR_PLAY = 6;  // Нужно минимум 6 сек буфера перед стартом
+        // НОВОЕ: Для второго плеера (index 1) ждем 0, для первого - 7 секунд
+        const MIN_SAFE_BUFFER = (wrapIndex === 1) ? 0 : 7; 
         
-        if (buffered < MIN_BUFFER_FOR_PLAY) {
-            console.log(`⏳ Waiting for buffer: ${buffered.toFixed(1)}s / ${MIN_BUFFER_FOR_PLAY}s`);
-            loader.style.display = 'flex';  // Показываем loader обратно
+        if (buffered < MIN_SAFE_BUFFER) {
+            console.log(`⏳ Waiting for buffer: ${buffered.toFixed(1)}s / ${MIN_SAFE_BUFFER}s`);
+            loader.style.display = 'flex';
             
-            // Ждем пока буфер накопится
             const checkBuffer = setInterval(() => {
                 const buf = player.buffered.length > 0 
                     ? player.buffered.end(player.buffered.length - 1) - player.currentTime 
                     : 0;
                 
-                console.log(`⏳ Buffering... ${buf.toFixed(1)}s / ${MIN_BUFFER_FOR_PLAY}s`);
+                console.log(`⏳ Buffering... ${buf.toFixed(1)}s / ${MIN_SAFE_BUFFER}s`);
                 
-                if (buf >= MIN_BUFFER_FOR_PLAY) {
+                if (buf >= MIN_SAFE_BUFFER) {
                     clearInterval(checkBuffer);
                     loader.style.display = 'none';
                     console.log(`✅ Buffer ready (${buf.toFixed(1)}s), starting play`);
                     
                     player.play()
-                        .then(() => {
-                            console.log('✅ play() resolved, paused =', player.paused);
-                        })
-                        .catch(err => {
-                            console.error('❌ play() failed:', err);
-                        });
+                        .then(() => console.log('✅ play() resolved'))
+                        .catch(err => console.error('❌ play() failed:', err));
                 }
-            }, 500);  // Проверяем каждые 500мс
+            }, 500);
             
-            return;  // Не запускаем play сразу
+            return;
         }
         
-        // Если буфер уже достаточный — играем сразу
+        // Если буфер уже есть или это второй плеер — играем сразу
+        loader.style.display = 'none'; // Убедимся что лоадер скрыт
         player.play()
-            .then(() => {
-                console.log('✅ play() resolved, paused =', player.paused);
-            })
-            .catch(err => {
-                console.error('❌ play() failed:', err);
-            });
+            .then(() => console.log('✅ play() resolved'))
+            .catch(err => console.error('❌ play() failed:', err));
     };
 
     if (player.readyState >= 2) {
