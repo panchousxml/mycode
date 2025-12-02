@@ -11,12 +11,12 @@ const CONFIG = {
     BUFFER_BEFORE_PLAY: { default: 7, short: 4 },  // Буфер перед стартом
 
     videos: {
-        0: {
+        main: {
             preview: 'https://static.tildacdn.com/vide6364-3939-4130-b261-383838353831/output_small.mp4',
             hls: 'https://video.pskamelit.ru/3min/master.m3u8',
             startQuality: 360
         },
-        1: {
+        vertolet: {
             preview: 'https://static.tildacdn.com/vide3730-3263-4434-b961-656664323431/zatirka-vertoletom.mp4',
             hls: 'https://video.pskamelit.ru/vertolet/master.m3u8',
             startQuality: 720,
@@ -102,7 +102,11 @@ function runNeoPlayer(wrap, wrapIndex) {
     let manifestReady = false;
     let optimalLevel = 0;
 
-    const videoData = CONFIG.videos[wrapIndex];
+    const videoKey = wrap.dataset.neoId || String(wrapIndex);
+    const videoData = CONFIG.videos[videoKey];
+
+    console.log(`🎬 INIT Player ${wrapIndex}`, { videoKey, hls: videoData?.hls });
+
     const isNativeHls = false; // canPlayNativeHls()
 
     // DOM элементы
@@ -122,6 +126,7 @@ function runNeoPlayer(wrap, wrapIndex) {
     const speed = wrap.querySelector('.neo-speed');
     const bar = wrap.querySelector('.neo-progress');
     const fill = wrap.querySelector('.neo-progress-filled');
+    const storageKey = 'neo_pos_' + videoKey;
 
     // Loader text
     let loaderText = loader.querySelector('.neo-loader-text');
@@ -269,7 +274,7 @@ function runNeoPlayer(wrap, wrapIndex) {
     disableQuality();
 
     // Восстановление позиции
-    const savedPos = localStorage.getItem('neo_pos_' + wrapIndex);
+    const savedPos = localStorage.getItem(storageKey);
     if (savedPos) {
         if (videoData.lockQuality) {
             // Короткое видео — сброс
@@ -295,8 +300,7 @@ function runNeoPlayer(wrap, wrapIndex) {
     // START VIDEO
     // ─────────────────────────────────────────────────────────────
     function startVideo() {
-        console.log('🔴 startVideo CALLED');
-        console.log('   hlsInstance before:', hlsInstance ? 'EXISTS' : 'NULL');
+        console.log(`🔴 startVideo Player ${wrapIndex}`);
 
         bigPlay.style.display = 'none';
         showLoaderSpinner(true);
@@ -725,7 +729,7 @@ function runNeoPlayer(wrap, wrapIndex) {
             player.style.display = 'block';
             preview.style.display = 'none';
 
-            localStorage.removeItem('neo_pos_' + wrapIndex);
+            localStorage.removeItem(storageKey);
         }
     }
 
@@ -749,7 +753,7 @@ function runNeoPlayer(wrap, wrapIndex) {
 
     // Player events
     player.addEventListener('timeupdate', () => {
-        localStorage.setItem('neo_pos_' + wrapIndex, player.currentTime);
+        localStorage.setItem(storageKey, player.currentTime);
 
         if (player.duration && !isDragging) {
             fill.style.width = (player.currentTime / player.duration * 100) + '%';
@@ -887,7 +891,7 @@ function runNeoPlayer(wrap, wrapIndex) {
             player.style.display = 'block';
             preview.style.display = 'none';
 
-            localStorage.removeItem('neo_pos_' + wrapIndex);
+            localStorage.removeItem(storageKey);
 
             const { progressCircle } = showLoaderSpinner(true);
             let replayProgress = 0;
