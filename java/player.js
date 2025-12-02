@@ -752,6 +752,14 @@ function runNeoPlayer(wrap, wrapIndex) {
                 }
                 lastFrameTime = player.currentTime;
                 sameTimeCounter = 0;
+
+                // ✅ Показать повтор за 1 сек до конца
+                if (player.duration && player.currentTime >= player.duration - 1 && !player.paused) {
+                    if (replay && replay.style.display !== 'flex') {
+                        console.log(`  → 1 second before end! Showing replay early.`);
+                        replay.style.display = 'flex';
+                    }
+                }
             }
         }
     });
