@@ -39,6 +39,9 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 let preloadSetupDone = false;
+let hlsInstance = null;
+let preloadHandlers = null;
+let preloadTempVideo = null;
 
 function checkWrapper() {
     const wrappers = document.querySelectorAll('.neo-player-wrapper');
@@ -98,7 +101,6 @@ function initNeoPlayer(wrappers) {
 // ОСНОВНАЯ ФУНКЦИЯ ПЛЕЕРА
 // ═══════════════════════════════════════════════════════════════
 function runNeoPlayer(wrap, wrapIndex) {
-    let hlsInstance = null;
     let manifestReady = false;
     let optimalLevel = 0;
 
@@ -302,13 +304,7 @@ function runNeoPlayer(wrap, wrapIndex) {
         clearTimeout(pauseTimeout);
         disableQuality();
         loaderText.innerText = '';
-
-        if (hlsInstance) {
-            hlsInstance.destroy();
-            hlsInstance = null;
-            manifestReady = false;
-        }
-
+        manifestReady = false;
         player.removeAttribute('src');
 
         if (isNativeHls) {
@@ -319,12 +315,27 @@ function runNeoPlayer(wrap, wrapIndex) {
         } else if (window.Hls && Hls.isSupported()) {
             console.log('🎬 Starting HLS playback from:', videoData.hls);
 
-            hlsInstance = new Hls({
-                backBufferLength: 20,
-                progressive: false,
-                enableWorker: true,
-                lowLatencyMode: false
-            });
+            if (!hlsInstance) {
+                console.log('🆕 Creating new HLS instance');
+                hlsInstance = new Hls({
+                    backBufferLength: 20,
+                    progressive: false,
+                    enableWorker: true,
+                    lowLatencyMode: false
+                });
+            } else {
+                console.log('♻️ Reusing preloaded HLS instance');
+                hlsInstance.stopLoad();
+            }
+
+            if (preloadHandlers) {
+                hlsInstance.off(Hls.Events.FRAG_LOADED, preloadHandlers.fragLoaded);
+                hlsInstance.off(Hls.Events.ERROR, preloadHandlers.error);
+                hlsInstance.off(Hls.Events.MEDIA_ATTACHED, preloadHandlers.mediaAttached);
+                preloadHandlers = null;
+            }
+
+            const manifestAlreadyParsed = Array.isArray(hlsInstance.levels) && hlsInstance.levels.length > 0;
 
             // Прогресс загрузки
             let loadProgress = 0;
@@ -358,8 +369,16 @@ function runNeoPlayer(wrap, wrapIndex) {
             hlsInstance.on(Hls.Events.ERROR, onHlsError);
             hlsInstance.on(Hls.Events.LEVEL_SWITCHED, updateQualityLabel);
 
-            hlsInstance.loadSource(videoData.hls);
+            if (!hlsInstance.url) {
+                hlsInstance.loadSource(videoData.hls);
+            }
+            hlsInstance.detachMedia();
             hlsInstance.attachMedia(player);
+            hlsInstance.startLoad();
+
+            if (manifestAlreadyParsed) {
+                onManifestParsed();
+            }
             console.log('✅ HLS attached, waiting for manifest...');
         } else {
             console.log('❌ HLS not supported');
@@ -399,6 +418,7 @@ function runNeoPlayer(wrap, wrapIndex) {
     }
 
     function onManifestParsed() {
+        if (manifestReady) return;
         console.log('📡 MANIFEST_PARSED, levels:', hlsInstance.levels);
 
         optimalLevel = findOptimalStartLevel();
@@ -1083,13 +1103,15 @@ function preloadFirstSegment(wrap) {
 
     if (!window.Hls || !Hls.isSupported()) return null;
 
-    const tempVideo = document.createElement('video');
-    tempVideo.muted = true;
+    preloadTempVideo = document.createElement('video');
+    preloadTempVideo.muted = true;
 
-    const hls = new Hls({
-        backBufferLength: 10,
-        lowLatencyMode: false
-    });
+    if (!hlsInstance) {
+        hlsInstance = new Hls({
+            backBufferLength: 10,
+            lowLatencyMode: false
+        });
+    }
 
     let stopTimeout = null;
     let stopped = false;
@@ -1105,30 +1127,48 @@ function preloadFirstSegment(wrap) {
         }
 
         try {
-            hls.stopLoad();
+            hlsInstance.stopLoad();
         } catch (e) {}
 
-        hls.destroy();
-        tempVideo.removeAttribute('src');
+        if (preloadHandlers) {
+            hlsInstance.off(Hls.Events.FRAG_LOADED, preloadHandlers.fragLoaded);
+            hlsInstance.off(Hls.Events.ERROR, preloadHandlers.error);
+            hlsInstance.off(Hls.Events.MEDIA_ATTACHED, preloadHandlers.mediaAttached);
+            preloadHandlers = null;
+        }
+
+        if (preloadTempVideo) {
+            preloadTempVideo.removeAttribute('src');
+        }
 
         console.log(`⏹️ Preload stopped (${reason})`);
     };
 
-    hls.on(Hls.Events.FRAG_LOADED, () => {
+    const onFragLoaded = () => {
         loadedSegments++;
         if (loadedSegments >= 2) {
             stopPreload('segment-limit');
         }
-    });
+    };
 
-    hls.on(Hls.Events.ERROR, () => stopPreload('error'));
+    const onPreloadError = () => stopPreload('error');
 
-    hls.on(Hls.Events.MEDIA_ATTACHED, () => {
-        hls.loadSource(videoData.hls);
-        hls.startLoad();
-    });
+    const onMediaAttached = () => {
+        hlsInstance.loadSource(videoData.hls);
+        hlsInstance.startLoad();
+    };
 
-    hls.attachMedia(tempVideo);
+    preloadHandlers = {
+        fragLoaded: onFragLoaded,
+        error: onPreloadError,
+        mediaAttached: onMediaAttached
+    };
+
+    hlsInstance.on(Hls.Events.FRAG_LOADED, onFragLoaded);
+    hlsInstance.on(Hls.Events.ERROR, onPreloadError);
+    hlsInstance.on(Hls.Events.MEDIA_ATTACHED, onMediaAttached);
+
+    hlsInstance.attachMedia(preloadTempVideo);
 
     stopTimeout = setTimeout(() => stopPreload('timeout'), 7000);
 
