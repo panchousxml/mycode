@@ -432,6 +432,7 @@ function runNeoPlayer(wrap, wrapIndex) {
         const maxAutoLevelIndex = hlsInstance.levels.findIndex(l => l.height === 720);
         if (maxAutoLevelIndex !== -1) {
             hlsInstance.maxAutoLevel = maxAutoLevelIndex;
+            hlsInstance.abrController.maxAutoLevel = maxAutoLevelIndex;
             console.log(
                 `📍 maxAutoLevel locked to 720p: index=${maxAutoLevelIndex}, ` +
                 `heights:`,
