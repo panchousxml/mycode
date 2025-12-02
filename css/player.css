@@ -199,6 +199,10 @@
 .neo-bottom .neo-pip { flex-shrink: 0; margin-left: auto; }
 .neo-bottom .neo-fullscreen { flex-shrink: 0; margin-left: 0; }
 
+.neo-player-wrapper-test-flag {
+    outline: 3px solid red;
+}
+
 @media (max-width: 768px) {
     /* Дополнительное место под вынесенный нижний прогресс-бар */
     .neo-player-wrapper.neo-player-mobile {
