@@ -128,6 +128,19 @@ function runNeoPlayer(wrap, wrapIndex) {
     const fill = wrap.querySelector('.neo-progress-filled');
     const storageKey = 'neo_pos_' + videoKey;
 
+    const isMobile = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+
+    function handleSeek(clientX) {
+        const rect = bar.getBoundingClientRect();
+        const ratio = Math.min(Math.max(0, (clientX - rect.left) / rect.width), 1);
+        if (!isNaN(player.duration) && player.duration > 0) {
+            player.currentTime = ratio * player.duration;
+            if (fill) {
+                fill.style.width = (ratio * 100) + '%';
+            }
+        }
+    }
+
     // Loader text
     let loaderText = loader.querySelector('.neo-loader-text');
     if (!loaderText) {
@@ -141,7 +154,6 @@ function runNeoPlayer(wrap, wrapIndex) {
     let pauseTimeout = null;
     let pauseStopLoadTimeout = null;
     let previewLoaded = false;
-    let seekLoaderInterval = null;
     let lastFrameTime = 0;
     let sameTimeCounter = 0;
 
@@ -1014,86 +1026,38 @@ function runNeoPlayer(wrap, wrapIndex) {
     // ─────────────────────────────────────────────────────────────
     // SEEK BAR
     // ─────────────────────────────────────────────────────────────
-    function updateSeekBar(e) {
-        const rect = bar.getBoundingClientRect();
-        const clientX = e.clientX || (e.touches ? e.touches[0].clientX : 0);
-        const x = clientX - rect.left;
-        const percent = Math.max(0, Math.min(1, x / rect.width));
-
-        if (!player.duration) return;
-
-        const { progressCircle } = showLoaderSpinner(true);
-
-        if (seekLoaderInterval) {
-            clearInterval(seekLoaderInterval);
-            seekLoaderInterval = null;
-        }
-
-        let seekProgress = 0;
-
-        seekLoaderInterval = setInterval(() => {
-            if (seekProgress < 85) {
-                seekProgress += 5;
-                updateProgressCircle(progressCircle, seekProgress);
-            }
-        }, 300);
-
-        player.currentTime = percent * player.duration;
-        fill.style.width = (percent * 100) + '%';
-    }
-
-    function stopSeekLoader() {
-        if (seekLoaderInterval) {
-            clearInterval(seekLoaderInterval);
-            seekLoaderInterval = null;
-        }
-        hideLoaderSpinner();
-    }
-
-    bar.addEventListener('click', updateSeekBar);
-
     bar.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        handleSeek(e.clientX);
         isDragging = true;
         bar.classList.add('neo-active');
-        clearTimeout(pauseTimeout);
-        player.pause();
-        updateSeekBar(e);
     });
 
     document.addEventListener('mousemove', (e) => {
-        if (isDragging) updateSeekBar(e);
+        if (!isDragging) return;
+        handleSeek(e.clientX);
     });
 
     document.addEventListener('mouseup', () => {
         if (isDragging) {
             isDragging = false;
             bar.classList.remove('neo-active');
-            player.play();
         }
     });
 
     bar.addEventListener('touchstart', (e) => {
-        isDragging = true;
-        bar.classList.add('neo-active');
-        clearTimeout(pauseTimeout);
-        player.pause();
-        updateSeekBar(e);
+        if (!isMobile) return;
+        e.preventDefault();
+        const touch = e.touches[0];
+        handleSeek(touch.clientX);
     });
 
-    document.addEventListener('touchmove', (e) => {
-        if (isDragging) updateSeekBar(e);
+    bar.addEventListener('touchmove', (e) => {
+        if (!isMobile) return;
+        e.preventDefault();
+        const touch = e.touches[0];
+        handleSeek(touch.clientX);
     });
-
-    document.addEventListener('touchend', () => {
-        if (isDragging) {
-            isDragging = false;
-            bar.classList.remove('neo-active');
-            player.play();
-        }
-    });
-
-    player.addEventListener('canplay', stopSeekLoader);
-    player.addEventListener('playing', stopSeekLoader);
 
     // ─────────────────────────────────────────────────────────────
     // CONTROLS VISIBILITY
