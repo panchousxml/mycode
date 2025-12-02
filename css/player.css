@@ -199,6 +199,37 @@
 .neo-bottom .neo-pip { flex-shrink: 0; margin-left: auto; }
 .neo-bottom .neo-fullscreen { flex-shrink: 0; margin-left: 0; }
 
+@media (max-width: 768px) {
+    /* Контейнер нижнего бара */
+    .neo-progress-bar-wrapper {
+        margin-top: 8px;
+    }
+
+    .neo-progress {
+        position: relative;
+        width: 100%;
+        height: 28px;
+        padding: 8px 0 4px 0;
+        background: transparent;
+        cursor: pointer;
+    }
+
+    .neo-progress-filled {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        transform: none;
+        height: 4px;
+        border-radius: 999px;
+    }
+
+    /* Кнопки остаются нормальной высоты, ничего дополнительно поднимать не нужно */
+    .neo-controls .neo-bottom {
+        padding-bottom: 0;
+    }
+}
+
 /* Кнопки */
 .neo-btn {
     background: none; border: none;
