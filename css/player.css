@@ -284,7 +284,7 @@
     .neo-progress {
         position: relative;
         height: 32px;
-        padding: 10px 0;
+        padding: 0 0 10px 0;
         background: transparent;
         cursor: pointer;
     }
@@ -294,8 +294,8 @@
         left: 0;
         right: 0;
         height: 4px;
-        top: 50%;
-        transform: translateY(-50%);
+        bottom: 0;
+        transform: none;
         border-radius: 999px;
     }
 }
