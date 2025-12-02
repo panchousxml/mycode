@@ -432,12 +432,13 @@ function runNeoPlayer(wrap, wrapIndex) {
         const maxAutoLevelIndex = hlsInstance.levels.findIndex(l => l.height === 720);
         if (maxAutoLevelIndex !== -1) {
             hlsInstance.maxAutoLevel = maxAutoLevelIndex;
-            hlsInstance.abrController.maxAutoLevel = maxAutoLevelIndex;
-            console.log(
-                `📍 maxAutoLevel locked to 720p: index=${maxAutoLevelIndex}, ` +
-                `heights:`,
-                hlsInstance.levels.map((l, i) => `${i}:${l.height}`)
-            );
+
+            // ✅ КРИТИЧНО: Блокировка на уровне ABR-контроллера
+            if (hlsInstance.abrController) {
+                hlsInstance.abrController.maxAutoLevel = maxAutoLevelIndex;
+            }
+
+            console.log(`📍 maxAutoLevel locked to 720p: index=${maxAutoLevelIndex}, abrController=${hlsInstance.abrController?.maxAutoLevel}`);
         }
 
         // Блокировка апгрейда качества пока буфер не накопится (только для первого видео)
@@ -455,11 +456,11 @@ function runNeoPlayer(wrap, wrapIndex) {
                         ? player.buffered.end(player.buffered.length - 1) - player.currentTime
                         : 0;
 
-                    console.log(
-                        `🧠 ABR nextAutoLevel raw=${current}, ` +
-                        `buffer=${buffered.toFixed(1)}s, optimalLevel=${optimalLevel}, ` +
-                        `maxAutoLevel=${hlsInstance.maxAutoLevel}`
-                    );
+                    // ✅ ЖЁСТКОЕ ОГРАНИЧЕНИЕ: никогда не выше maxAutoLevelIndex
+                    if (current > maxAutoLevelIndex) {
+                        console.log(`🚫 HARD CAP: Blocking level ${current}, capped at ${maxAutoLevelIndex}`);
+                        return maxAutoLevelIndex;
+                    }
 
                     if (buffered < CONFIG.MIN_BUFFER_FOR_UPGRADE && current > optimalLevel) {
                         console.log(`🔒 Blocked upgrade, buffer: ${buffered.toFixed(1)}s`);
