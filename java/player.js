@@ -886,6 +886,24 @@ function runNeoPlayer(wrap, wrapIndex) {
         togglePlay();
     });
 
+    // Space to play/pause
+    document.addEventListener('keydown', (e) => {
+        if (e.code === 'Space') {
+            // Проверить, находится ли фокус на input/select/textarea
+            if (['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeElement.tagName)) {
+                return; // Не трогаем пробел в форм-элементах
+            }
+
+            e.preventDefault(); // Предотвратить скролл страницы
+
+            // Проверить, это наш плеер
+            if (wrap.querySelector('.neo-video') === player) {
+                togglePlay();
+                console.log('⏯️ Space pressed: toggle play/pause');
+            }
+        }
+    });
+
     if (vol) vol.oninput = () => player.volume = vol.value;
     if (speed) speed.onchange = () => player.playbackRate = parseFloat(speed.value);
 
