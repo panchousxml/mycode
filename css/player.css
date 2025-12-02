@@ -280,23 +280,31 @@
     .neo-select { font-size: 11px; padding: 4px 6px; }
     .neo-btn svg { width: 18px; height: 18px; }
 
-    /* Увеличенная зона клика для прогресса на мобилках */
+    /* Отдельный бар прогресса под блоком кнопок, ближе к низу плеера */
     .neo-progress {
-        position: relative;
-        height: 32px;
-        padding: 0 0 10px 0;
+        position: absolute;
+        left: 12px;
+        right: 12px;
+        bottom: 8px;
+        height: 28px;
+        padding: 10px 0 6px 0;
         background: transparent;
-        cursor: pointer;
+        z-index: 5;
     }
 
     .neo-progress-filled {
         position: absolute;
         left: 0;
         right: 0;
-        height: 4px;
         bottom: 0;
         transform: none;
+        height: 4px;
         border-radius: 999px;
+    }
+
+    /* Чтобы кнопки не налезали на нижний бар */
+    .neo-controls .neo-bottom {
+        padding-bottom: 40px;
     }
 }
 @media (max-width: 480px) {
