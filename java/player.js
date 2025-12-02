@@ -1118,7 +1118,12 @@ function runNeoPlayer(wrap, wrapIndex) {
 function preloadFirstSegment(wrap) {
     if (!wrap) return null;
 
-    const videoData = CONFIG.videos[0];
+    const videoKey = wrap.dataset.neoId || 'main';
+    const videoData = CONFIG.videos[videoKey];
+    if (!videoData || !videoData.hls) {
+        console.log('❌ PRELOAD: no videoData for', videoKey);
+        return null;
+    }
 
     if (!window.Hls || !Hls.isSupported()) return null;
 
