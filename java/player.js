@@ -360,6 +360,17 @@ function runNeoPlayer(wrap, wrapIndex) {
             hlsInstance.on(Hls.Events.MANIFEST_PARSED, onManifestParsed);
             hlsInstance.on(Hls.Events.ERROR, onHlsError);
             hlsInstance.on(Hls.Events.LEVEL_SWITCHED, updateQualityLabel);
+            hlsInstance.on(Hls.Events.FRAG_LOADED, (event, data) => {
+                const lvl = data.frag.level;
+                const levelInfo = hlsInstance.levels[lvl];
+                console.log(
+                    `🎞 FRAG_LOADED: level=${lvl}, ` +
+                    `height=${levelInfo ? levelInfo.height : 'N/A'}, ` +
+                    `sn=${data.frag.sn}, autoLevelEnabled=${hlsInstance.autoLevelEnabled}, ` +
+                    `currentLevel=${hlsInstance.currentLevel}, nextAutoLevel=${hlsInstance.nextAutoLevel}, ` +
+                    `maxAutoLevel=${hlsInstance.maxAutoLevel}`
+                );
+            });
 
             if (!hlsInstance.url) {
                 hlsInstance.loadSource(videoData.hls);
@@ -411,7 +422,7 @@ function runNeoPlayer(wrap, wrapIndex) {
 
     function onManifestParsed() {
         if (manifestReady) return;
-        console.log('📡 MANIFEST_PARSED, levels:', hlsInstance.levels);
+        console.log('📡 MANIFEST_PARSED, levels:', hlsInstance.levels.map(l => l.height));
 
         optimalLevel = findOptimalStartLevel();
         hlsInstance.startLevel = optimalLevel;
@@ -421,7 +432,11 @@ function runNeoPlayer(wrap, wrapIndex) {
         const maxAutoLevelIndex = hlsInstance.levels.findIndex(l => l.height === 720);
         if (maxAutoLevelIndex !== -1) {
             hlsInstance.maxAutoLevel = maxAutoLevelIndex;
-            console.log(`📍 maxAutoLevel locked to 720p`);
+            console.log(
+                `📍 maxAutoLevel locked to 720p: index=${maxAutoLevelIndex}, ` +
+                `heights:`,
+                hlsInstance.levels.map((l, i) => `${i}:${l.height}`)
+            );
         }
 
         // Блокировка апгрейда качества пока буфер не накопится (только для первого видео)
@@ -438,6 +453,12 @@ function runNeoPlayer(wrap, wrapIndex) {
                     const buffered = player.buffered.length > 0
                         ? player.buffered.end(player.buffered.length - 1) - player.currentTime
                         : 0;
+
+                    console.log(
+                        `🧠 ABR nextAutoLevel raw=${current}, ` +
+                        `buffer=${buffered.toFixed(1)}s, optimalLevel=${optimalLevel}, ` +
+                        `maxAutoLevel=${hlsInstance.maxAutoLevel}`
+                    );
 
                     if (buffered < CONFIG.MIN_BUFFER_FOR_UPGRADE && current > optimalLevel) {
                         console.log(`🔒 Blocked upgrade, buffer: ${buffered.toFixed(1)}s`);
