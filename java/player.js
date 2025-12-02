@@ -38,7 +38,6 @@ document.addEventListener("DOMContentLoaded", () => {
     requestAnimationFrame(checkWrapper);
 });
 
-let preloadSetupDone = false;
 let hlsInstance = null;
 
 function checkWrapper() {
@@ -65,34 +64,6 @@ function checkPlayerReady(wrappers) {
 
 function initNeoPlayer(wrappers) {
     wrappers.forEach((wrap, index) => runNeoPlayer(wrap, index));
-
-    if (preloadSetupDone) return;
-    preloadSetupDone = true;
-
-    window.addEventListener('load', () => {
-        const firstWrap = document.querySelectorAll('.neo-player-wrapper')[0];
-        if (!firstWrap) return;
-
-        const firstPlayer = firstWrap.querySelector('.neo-video');
-        if (!firstPlayer) return;
-
-        let userStarted = !firstPlayer.paused || firstPlayer.currentTime > 0;
-        let stopPreload = null;
-
-        const handleUserStart = () => {
-            userStarted = true;
-            if (typeof stopPreload === 'function') {
-                stopPreload('user-start');
-            }
-        };
-
-        firstPlayer.addEventListener('play', handleUserStart, { once: true });
-
-        setTimeout(() => {
-            if (userStarted) return;
-            stopPreload = preloadFirstSegment(firstWrap);
-        }, CONFIG.PRELOAD_DELAY);
-    });
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -1083,96 +1054,6 @@ function runNeoPlayer(wrap, wrapIndex) {
 
     wrap.addEventListener('touchstart', showControls);
     wrap.addEventListener('mousemove', showControls);
-}
-
-// ═══════════════════════════════════════════════════════════════
-// PRELOAD
-// ═══════════════════════════════════════════════════════════════
-function preloadFirstSegment(wrap) {
-    if (!wrap) return null;
-
-    const videoData = CONFIG.videos[0];
-
-    if (!window.Hls || !Hls.isSupported()) return null;
-
-    const tempVideo = document.createElement('video');
-    tempVideo.muted = true;
-
-    console.log('🟡 PRELOAD: Creating new HLS instance for tempVideo');
-
-    const hls = new Hls({
-        backBufferLength: 10,
-        lowLatencyMode: false
-    });
-
-    let stopTimeout = null;
-    let stopped = false;
-    let loadedSegments = 0;
-
-    const stopPreload = (reason = 'timeout') => {
-        if (stopped) return;
-        stopped = true;
-
-        if (stopTimeout) {
-            clearTimeout(stopTimeout);
-            stopTimeout = null;
-        }
-
-        try {
-            hls.stopLoad();
-            console.log(`⏹️ PRELOAD: stopLoad() called, reason: ${reason}`);
-        } catch (e) {}
-
-        try {
-            hls.destroy();
-            console.log(`⏹️ PRELOAD: hls.destroy() called`);
-        } catch (e) {}
-
-        tempVideo.removeAttribute('src');
-
-        console.log(`⏹️ Preload stopped (${reason}), loadedSegments: ${loadedSegments}`);
-    };
-
-    hls.on(Hls.Events.MANIFEST_PARSED, () => {
-        console.log(`📡 PRELOAD MANIFEST_PARSED:`, hls.levels.map(l => `${l.height}p`));
-    });
-
-    hls.on(Hls.Events.LEVEL_SWITCHING, (event, data) => {
-        console.log(`🎯 PRELOAD LEVEL_SWITCHING: from ${data.level} to next`);
-    });
-
-    hls.on(Hls.Events.FRAG_LOADING, (event, data) => {
-        console.log(`📥 PRELOAD FRAG_LOADING: ${data.frag.relurl}`);
-    });
-
-    hls.on(Hls.Events.FRAG_LOADED, (event, data) => {
-        loadedSegments++;
-        console.log(`✅ PRELOAD FRAG_LOADED: ${data.frag.relurl}, total: ${loadedSegments}`);
-        if (loadedSegments >= 2) {
-            stopPreload('segment-limit');
-        }
-    });
-
-    hls.on(Hls.Events.ERROR, (event, data) => {
-        console.log(`❌ PRELOAD ERROR:`, data);
-        stopPreload('error');
-    });
-
-    hls.on(Hls.Events.MEDIA_ATTACHED, () => {
-        console.log(`🎬 PRELOAD MEDIA_ATTACHED`);
-        hls.loadSource(videoData.hls);
-        hls.startLoad();
-        console.log(`🚀 PRELOAD: loadSource + startLoad called`);
-    });
-
-    hls.attachMedia(tempVideo);
-    console.log(`📎 PRELOAD: hls.attachMedia(tempVideo) called`);
-
-    stopTimeout = setTimeout(() => stopPreload('timeout'), 7000);
-
-    console.log('🟡 Silent preload started');
-
-    return stopPreload;
 }
 
 console.log('🚀 CLEANED BUILD');
