@@ -40,8 +40,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
 let preloadSetupDone = false;
 let hlsInstance = null;
-let preloadHandlers = null;
-let preloadTempVideo = null;
 
 function checkWrapper() {
     const wrappers = document.querySelectorAll('.neo-player-wrapper');
@@ -298,6 +296,7 @@ function runNeoPlayer(wrap, wrapIndex) {
     // ─────────────────────────────────────────────────────────────
     function startVideo() {
         console.log('🔴 startVideo CALLED');
+        console.log('   hlsInstance before:', hlsInstance ? 'EXISTS' : 'NULL');
 
         bigPlay.style.display = 'none';
         showLoaderSpinner(true);
@@ -326,13 +325,6 @@ function runNeoPlayer(wrap, wrapIndex) {
             } else {
                 console.log('♻️ Reusing preloaded HLS instance');
                 hlsInstance.stopLoad();
-            }
-
-            if (preloadHandlers) {
-                hlsInstance.off(Hls.Events.FRAG_LOADED, preloadHandlers.fragLoaded);
-                hlsInstance.off(Hls.Events.ERROR, preloadHandlers.error);
-                hlsInstance.off(Hls.Events.MEDIA_ATTACHED, preloadHandlers.mediaAttached);
-                preloadHandlers = null;
             }
 
             const manifestAlreadyParsed = Array.isArray(hlsInstance.levels) && hlsInstance.levels.length > 0;
@@ -1103,15 +1095,15 @@ function preloadFirstSegment(wrap) {
 
     if (!window.Hls || !Hls.isSupported()) return null;
 
-    preloadTempVideo = document.createElement('video');
-    preloadTempVideo.muted = true;
+    const tempVideo = document.createElement('video');
+    tempVideo.muted = true;
 
-    if (!hlsInstance) {
-        hlsInstance = new Hls({
-            backBufferLength: 10,
-            lowLatencyMode: false
-        });
-    }
+    console.log('🟡 PRELOAD: Creating new HLS instance for tempVideo');
+
+    const hls = new Hls({
+        backBufferLength: 10,
+        lowLatencyMode: false
+    });
 
     let stopTimeout = null;
     let stopped = false;
@@ -1127,48 +1119,54 @@ function preloadFirstSegment(wrap) {
         }
 
         try {
-            hlsInstance.stopLoad();
+            hls.stopLoad();
+            console.log(`⏹️ PRELOAD: stopLoad() called, reason: ${reason}`);
         } catch (e) {}
 
-        if (preloadHandlers) {
-            hlsInstance.off(Hls.Events.FRAG_LOADED, preloadHandlers.fragLoaded);
-            hlsInstance.off(Hls.Events.ERROR, preloadHandlers.error);
-            hlsInstance.off(Hls.Events.MEDIA_ATTACHED, preloadHandlers.mediaAttached);
-            preloadHandlers = null;
-        }
+        try {
+            hls.destroy();
+            console.log(`⏹️ PRELOAD: hls.destroy() called`);
+        } catch (e) {}
 
-        if (preloadTempVideo) {
-            preloadTempVideo.removeAttribute('src');
-        }
+        tempVideo.removeAttribute('src');
 
-        console.log(`⏹️ Preload stopped (${reason})`);
+        console.log(`⏹️ Preload stopped (${reason}), loadedSegments: ${loadedSegments}`);
     };
 
-    const onFragLoaded = () => {
+    hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        console.log(`📡 PRELOAD MANIFEST_PARSED:`, hls.levels.map(l => `${l.height}p`));
+    });
+
+    hls.on(Hls.Events.LEVEL_SWITCHING, (event, data) => {
+        console.log(`🎯 PRELOAD LEVEL_SWITCHING: from ${data.level} to next`);
+    });
+
+    hls.on(Hls.Events.FRAG_LOADING, (event, data) => {
+        console.log(`📥 PRELOAD FRAG_LOADING: ${data.frag.relurl}`);
+    });
+
+    hls.on(Hls.Events.FRAG_LOADED, (event, data) => {
         loadedSegments++;
+        console.log(`✅ PRELOAD FRAG_LOADED: ${data.frag.relurl}, total: ${loadedSegments}`);
         if (loadedSegments >= 2) {
             stopPreload('segment-limit');
         }
-    };
+    });
 
-    const onPreloadError = () => stopPreload('error');
+    hls.on(Hls.Events.ERROR, (event, data) => {
+        console.log(`❌ PRELOAD ERROR:`, data);
+        stopPreload('error');
+    });
 
-    const onMediaAttached = () => {
-        hlsInstance.loadSource(videoData.hls);
-        hlsInstance.startLoad();
-    };
+    hls.on(Hls.Events.MEDIA_ATTACHED, () => {
+        console.log(`🎬 PRELOAD MEDIA_ATTACHED`);
+        hls.loadSource(videoData.hls);
+        hls.startLoad();
+        console.log(`🚀 PRELOAD: loadSource + startLoad called`);
+    });
 
-    preloadHandlers = {
-        fragLoaded: onFragLoaded,
-        error: onPreloadError,
-        mediaAttached: onMediaAttached
-    };
-
-    hlsInstance.on(Hls.Events.FRAG_LOADED, onFragLoaded);
-    hlsInstance.on(Hls.Events.ERROR, onPreloadError);
-    hlsInstance.on(Hls.Events.MEDIA_ATTACHED, onMediaAttached);
-
-    hlsInstance.attachMedia(preloadTempVideo);
+    hls.attachMedia(tempVideo);
+    console.log(`📎 PRELOAD: hls.attachMedia(tempVideo) called`);
 
     stopTimeout = setTimeout(() => stopPreload('timeout'), 7000);
 
