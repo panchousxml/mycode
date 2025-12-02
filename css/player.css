@@ -200,9 +200,21 @@
 .neo-bottom .neo-fullscreen { flex-shrink: 0; margin-left: 0; }
 
 @media (max-width: 768px) {
-    /* Контейнер нижнего бара */
+    /* Дополнительное место под вынесенный нижний прогресс-бар */
+    .neo-player-wrapper.neo-player-mobile {
+        position: relative;
+        margin-bottom: 32px;
+    }
+
+    /* Отдельный прогресс-бар под плеером */
     .neo-progress-bar-wrapper {
-        margin-top: 8px;
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: -24px;
+        padding: 0 12px;
+        background: transparent;
+        z-index: 5;
     }
 
     .neo-progress {
@@ -224,7 +236,7 @@
         border-radius: 999px;
     }
 
-    /* Кнопки остаются нормальной высоты, ничего дополнительно поднимать не нужно */
+    /* Меню кнопок остаётся на месте */
     .neo-controls .neo-bottom {
         padding-bottom: 0;
     }
@@ -311,32 +323,6 @@
     .neo-select { font-size: 11px; padding: 4px 6px; }
     .neo-btn svg { width: 18px; height: 18px; }
 
-    /* Отдельный бар прогресса под блоком кнопок, ближе к низу плеера */
-    .neo-progress {
-        position: absolute;
-        left: 12px;
-        right: 12px;
-        bottom: 8px;
-        height: 28px;
-        padding: 10px 0 6px 0;
-        background: transparent;
-        z-index: 5;
-    }
-
-    .neo-progress-filled {
-        position: absolute;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        transform: none;
-        height: 4px;
-        border-radius: 999px;
-    }
-
-    /* Чтобы кнопки не налезали на нижний бар */
-    .neo-controls .neo-bottom {
-        padding-bottom: 40px;
-    }
 }
 @media (max-width: 480px) {
     .neo-big-play { width: 48px; height: 48px; }
