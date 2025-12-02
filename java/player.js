@@ -1135,6 +1135,15 @@ function preloadFirstSegment(wrap) {
 
     hls.on(Hls.Events.MANIFEST_PARSED, () => {
         console.log(`📡 PRELOAD MANIFEST_PARSED:`, hls.levels.map(l => `${l.height}p`));
+
+        // ✅ Зафиксировать только 360p на предзагрузке
+        const targetLevel = hls.levels.findIndex(l => l.height === 360);
+        if (targetLevel !== -1) {
+            hls.startLevel = targetLevel;
+            hls.currentLevel = targetLevel;
+            hls.maxAutoLevel = targetLevel;
+            console.log(`🔒 PRELOAD: Locked to 360p only`);
+        }
     });
 
     hls.on(Hls.Events.LEVEL_SWITCHING, (event, data) => {
