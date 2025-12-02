@@ -279,6 +279,24 @@
     .neo-volume { width: 60px; }
     .neo-select { font-size: 11px; padding: 4px 6px; }
     .neo-btn svg { width: 18px; height: 18px; }
+
+    /* Увеличенная зона клика для прогресса на мобилках */
+    .neo-progress {
+        position: relative;
+        height: 32px;
+        padding: 10px 0;
+        cursor: pointer;
+    }
+
+    .neo-progress-filled {
+        position: absolute;
+        left: 0;
+        right: 0;
+        height: 4px;
+        top: 50%;
+        transform: translateY(-50%);
+        border-radius: 999px;
+    }
 }
 @media (max-width: 480px) {
     .neo-big-play { width: 48px; height: 48px; }
