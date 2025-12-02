@@ -758,22 +758,33 @@ function runNeoPlayer(wrap, wrapIndex) {
 
     player.addEventListener('ended', () => {
         console.log(`[Video ${wrapIndex}] ENDED event fired! currentTime=${player.currentTime.toFixed(2)}, duration=${player.duration.toFixed(2)}`);
-        
+
+        console.log(`  BEFORE: controls=${controls.style.display}, bigPlay=${bigPlay.style.display}, preview=${preview.style.display}, replay=${replay ? replay.style.display : 'N/A'}`);
+
         controls.style.display = 'none';
         bigPlay.style.display = 'none';
         preview.style.display = 'none';
 
         if (replay) {
             replay.style.display = 'flex';
+            console.log(`  ✅ Replay shown!`);
         }
+
+        console.log(`  AFTER: controls=${controls.style.display}, bigPlay=${bigPlay.style.display}, preview=${preview.style.display}, replay=${replay ? replay.style.display : 'N/A'}`);
     });
 
     player.addEventListener('pause', () => {
-        if (isDragging) return;
+        console.log(`[Video ${wrapIndex}] PAUSE fired. player.ended=${player.ended}`);
+
+        if (isDragging) {
+            console.log(`  → isDragging=true, returning`);
+            return;
+        }
 
         // ❌ НЕ скрывай UI если видео закончилось — ended уже это сделал
         if (player.ended) {
             console.log(`[Video ${wrapIndex}] Pause after ended, skipping UI hide`);
+            console.log(`  → player.ended=true, skipping UI hide`);
             return;
         }
 
