@@ -772,7 +772,7 @@ function runNeoPlayer(wrap, wrapIndex) {
     player.addEventListener('timeupdate', () => {
         localStorage.setItem(storageKey, player.currentTime);
 
-        if (player.duration && !isDragging && fill) {
+        if (player.duration && fill) {
             fill.style.width = (player.currentTime / player.duration) * 100 + '%';
         }
 
