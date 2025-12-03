@@ -6,6 +6,7 @@
     background: #000;
     border-radius: 8px;
     overflow: hidden;
+    padding-bottom: 32px;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 .neo-player-wrapper * { box-sizing: border-box; }
@@ -180,6 +181,7 @@
     width: 100%;
     padding: 8px 12px 0 12px;
     background: transparent;
+    z-index: 29;
 }
 
 .neo-progress {
@@ -189,12 +191,23 @@
     background: transparent;
     cursor: pointer;
     transition: height 0.2s;
+    z-index: 29;
+}
+
+.neo-progress::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 4px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.35);
 }
 .neo-progress:hover { height: 32px; }
 .neo-progress-filled {
     position: absolute;
     left: 0;
-    right: 0;
     bottom: 0;
     transform: none;
     height: 4px;

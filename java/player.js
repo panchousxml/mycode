@@ -131,13 +131,13 @@ function runNeoPlayer(wrap, wrapIndex) {
     const isMobile = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
 
     function handleSeek(clientX) {
+        if (!bar || !fill) return;
+
         const rect = bar.getBoundingClientRect();
         const ratio = Math.min(Math.max(0, (clientX - rect.left) / rect.width), 1);
         if (!isNaN(player.duration) && player.duration > 0) {
             player.currentTime = ratio * player.duration;
-            if (fill) {
-                fill.style.width = (ratio * 100) + '%';
-            }
+            fill.style.width = (ratio * 100) + '%';
         }
     }
 
@@ -767,7 +767,7 @@ function runNeoPlayer(wrap, wrapIndex) {
     player.addEventListener('timeupdate', () => {
         localStorage.setItem(storageKey, player.currentTime);
 
-        if (player.duration && !isDragging) {
+        if (player.duration && !isDragging && fill) {
             fill.style.width = (player.currentTime / player.duration * 100) + '%';
         }
 
