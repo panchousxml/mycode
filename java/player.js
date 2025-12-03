@@ -125,7 +125,7 @@ function runNeoPlayer(wrap, wrapIndex) {
       const vol = wrap.querySelector('.neo-volume');
       const speed = wrap.querySelector('.neo-speed');
       const bar = document.querySelector('.neo-progress');
-      const fill = wrap.querySelector('.neo-progress-filled');
+      const fill = document.querySelector('.neo-progress-filled');
 
       const updateProgressFill = () => {
           if (fill && player.duration) {
@@ -135,6 +135,8 @@ function runNeoPlayer(wrap, wrapIndex) {
 
       // Инициализировать начальное значение полоски
       updateProgressFill();
+      player.addEventListener('timeupdate', updateProgressFill);
+      player.addEventListener('loadedmetadata', updateProgressFill);
 
       const storageKey = 'neo_pos_' + videoKey;
 
