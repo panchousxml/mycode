@@ -367,4 +367,7 @@
         border-radius: 8px !important;
         overflow: hidden !important;
     }
+    #rec1418234511 {
+    pointer-events: none !important;
+}
 }
