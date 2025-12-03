@@ -174,7 +174,7 @@
     opacity: 1; transition: opacity 0.3s;
 }
 
-/* Progress bar */
+/* Progress bar - НОВЫЕ СТИЛИ */
 .neo-progress-container {
     position: relative;
     width: 100%;
@@ -195,17 +195,10 @@
     box-sizing: border-box;
 }
 
-.neo-progress::before {
-    content: "";
-    position: absolute;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    height: 4px;
-    border-radius: 999px;
-    background: rgba(255, 255, 255, 0.35);
+.neo-progress:hover {
+    height: 32px;
 }
-.neo-progress:hover { height: 32px; }
+
 .neo-progress-filled {
     position: absolute;
     left: 12px;
@@ -217,7 +210,6 @@
     width: 0%;
     transition: width 0.1s linear;
 }
-.neo-progress.neo-active { height: 32px; }
 
 /* Bottom controls */
 .neo-bottom {
