@@ -195,6 +195,10 @@
     box-sizing: border-box;
 }
 
+.neo-progress::before {
+    content: none;
+}
+
 .neo-progress:hover {
     height: 32px;
 }
