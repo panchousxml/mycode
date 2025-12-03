@@ -126,11 +126,15 @@ function runNeoPlayer(wrap, wrapIndex) {
       const speed = wrap.querySelector('.neo-speed');
       const bar = document.querySelector('.neo-progress');
       const fill = wrap.querySelector('.neo-progress-filled');
-      
+
+      const updateProgressFill = () => {
+          if (fill && player.duration) {
+              fill.style.width = (player.currentTime / player.duration) * 100 + '%';
+          }
+      };
+
       // Инициализировать начальное значение полоски
-      if (fill && player.duration) {
-          fill.style.width = (player.currentTime / player.duration) * 100 + '%';
-      }
+      updateProgressFill();
 
       const storageKey = 'neo_pos_' + videoKey;
 
@@ -775,18 +779,12 @@ function runNeoPlayer(wrap, wrapIndex) {
     });
 
     // Player events
-    player.addEventListener('playing', () => {
-        if (fill && player.duration) {
-            fill.style.width = (player.currentTime / player.duration) * 100 + '%';
-        }
-    });
+    player.addEventListener('playing', updateProgressFill);
 
     player.addEventListener('timeupdate', () => {
         localStorage.setItem(storageKey, player.currentTime);
 
-        if (player.duration && fill) {
-            fill.style.width = (player.currentTime / player.duration) * 100 + '%';
-        }
+        updateProgressFill();
 
         // Hide preview when playback actually started
         if (player.currentTime > 0.1 && !player.paused && preview.style.display !== 'none') {
