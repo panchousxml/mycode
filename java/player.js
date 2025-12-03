@@ -39,8 +39,6 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 let preloadSetupDone = false;
-let hlsInstance = null;
-
 function checkWrapper() {
     const wrappers = document.querySelectorAll('.neo-player-wrapper');
     if (!wrappers.length) {
@@ -101,6 +99,7 @@ function initNeoPlayer(wrappers) {
 function runNeoPlayer(wrap, wrapIndex) {
     let manifestReady = false;
     let optimalLevel = 0;
+    let hlsInstance = null; // Локальный экземпляр для каждого плеера
 
     const videoKey = wrap.dataset.neoId || String(wrapIndex);
     const videoData = CONFIG.videos[videoKey];
