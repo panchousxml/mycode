@@ -334,7 +334,8 @@
 @media (max-width: 768px) {
     #neo-player-2 {
         aspect-ratio: 1 / 1;
-        border-radius: 10px; /* скругление снизу и сверху */
+        border-bottom-left-radius: 5px;  /* добавляем НИЖНИЕ */
+        border-bottom-right-radius: 5px; /* добавляем НИЖНИЕ */
         overflow: hidden;    /* чтобы видео не вылазило за края */
     }
 
