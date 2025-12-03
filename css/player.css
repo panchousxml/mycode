@@ -185,6 +185,8 @@
     background: transparent;
     box-sizing: border-box;
     z-index: 35;
+    transition: opacity 0.3s;
+    opacity: 1;
 }
 
 .neo-progress {

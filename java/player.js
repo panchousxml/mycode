@@ -123,6 +123,7 @@ function runNeoPlayer(wrap, wrapIndex) {
     const btnPip = wrap.querySelector('.neo-pip');
       const vol = wrap.querySelector('.neo-volume');
       const speed = wrap.querySelector('.neo-speed');
+      const progressWrapper = wrap.querySelector('.neo-progress-bar-wrapper');
       const bar = wrap.querySelector('.neo-progress');
       const fill = wrap.querySelector('.neo-progress-filled');
 
@@ -1093,9 +1094,17 @@ function runNeoPlayer(wrap, wrapIndex) {
 
     function showControls() {
         controls.style.opacity = '1';
+        if (progressWrapper) {
+            progressWrapper.style.opacity = '1';
+        }
         clearTimeout(controlsTimeout);
         controlsTimeout = setTimeout(() => {
-            if (!player.paused) controls.style.opacity = '0';
+            if (!player.paused) {
+                controls.style.opacity = '0';
+                if (progressWrapper) {
+                    progressWrapper.style.opacity = '0';
+                }
+            }
         }, 3000);
     }
 
