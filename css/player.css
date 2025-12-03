@@ -334,6 +334,8 @@
 @media (max-width: 768px) {
     #neo-player-2 {
         aspect-ratio: 1 / 1;
+        border-radius: 10px; /* скругление снизу и сверху */
+        overflow: hidden;    /* чтобы видео не вылазило за края */
     }
 
     #neo-player-2 video,
@@ -344,3 +346,4 @@
         height: 100%;
     }
 }
+
