@@ -124,7 +124,7 @@ function runNeoPlayer(wrap, wrapIndex) {
     const btnPip = wrap.querySelector('.neo-pip');
     const vol = wrap.querySelector('.neo-volume');
     const speed = wrap.querySelector('.neo-speed');
-    const bar = wrap.querySelector('.neo-progress');
+    const bar = document.querySelector('.neo-progress');
     const fill = wrap.querySelector('.neo-progress-filled');
     const storageKey = 'neo_pos_' + videoKey;
 
