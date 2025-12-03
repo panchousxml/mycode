@@ -332,19 +332,30 @@
 }
 
 @media (max-width: 768px) {
+
     #neo-player-2 {
         aspect-ratio: 1 / 1;
+        border-radius: 8px !important;
+        overflow: hidden;
+        position: relative;
+    }
+
+    /* Обёртка для видео */
+    #neo-player-2 .neo-video-wrapper {
+        position: absolute;
+        top: 0; left: 0;
+        width: 100%;
+        height: 100%;
         overflow: hidden;
         border-radius: 8px !important;
     }
 
-    #neo-player-2 video,
-    #neo-player-2 .neo-preview,
-    #neo-player-2 .neo-video {
-        object-fit: cover;
+    /* Видео внутри */
+    #neo-player-2 .neo-video,
+    #neo-player-2 .neo-preview {
         width: 100%;
         height: 100%;
-        border-radius: 8px !important;     /* ← защищаем нижние углы */
-        clip-path: inset(0 round 8px);      /* ← гарантированно обрезает видео по углам */
+        object-fit: cover;
+        border-radius: 8px;
     }
 }
