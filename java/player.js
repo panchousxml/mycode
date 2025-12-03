@@ -775,6 +775,12 @@ function runNeoPlayer(wrap, wrapIndex) {
     });
 
     // Player events
+    player.addEventListener('playing', () => {
+        if (fill && player.duration) {
+            fill.style.width = (player.currentTime / player.duration) * 100 + '%';
+        }
+    });
+
     player.addEventListener('timeupdate', () => {
         localStorage.setItem(storageKey, player.currentTime);
 
