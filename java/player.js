@@ -122,11 +122,17 @@ function runNeoPlayer(wrap, wrapIndex) {
     const btnFull = wrap.querySelector('.neo-fullscreen');
     const fullscreenIcon = wrap.querySelector('.neo-fullscreen-icon');
     const btnPip = wrap.querySelector('.neo-pip');
-    const vol = wrap.querySelector('.neo-volume');
-    const speed = wrap.querySelector('.neo-speed');
-    const bar = document.querySelector('.neo-progress');
-    const fill = wrap.querySelector('.neo-progress-filled');
-    const storageKey = 'neo_pos_' + videoKey;
+      const vol = wrap.querySelector('.neo-volume');
+      const speed = wrap.querySelector('.neo-speed');
+      const bar = document.querySelector('.neo-progress');
+      const fill = wrap.querySelector('.neo-progress-filled');
+      
+      // Инициализировать начальное значение полоски
+      if (fill && player.duration) {
+          fill.style.width = (player.currentTime / player.duration) * 100 + '%';
+      }
+
+      const storageKey = 'neo_pos_' + videoKey;
 
     const isMobile = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
 
