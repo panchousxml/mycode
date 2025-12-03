@@ -199,28 +199,21 @@
 .neo-bottom .neo-pip { flex-shrink: 0; margin-left: auto; }
 .neo-bottom .neo-fullscreen { flex-shrink: 0; margin-left: 0; }
 
-.neo-player-wrapper-test-flag {
-    outline: 3px solid red;
-}
-
 @media (max-width: 768px) {
-    /* Дополнительное место под вынесенный нижний прогресс-бар */
+    /* Обёртка мобильного плеера */
     .neo-player-wrapper.neo-player-mobile {
         position: relative;
-        margin-bottom: 32px;
+        margin-bottom: 0;
     }
 
-    /* Отдельный прогресс-бар под плеером */
+    /* Контейнер для нижнего прогресс-бара — отдельный блок ПОД кнопками */
     .neo-progress-bar-wrapper {
-        position: absolute;
-        left: 0;
-        right: 0;
-        bottom: -24px;
-        padding: 0 12px;
+        position: static;
+        padding: 8px 12px 0 12px;
         background: transparent;
-        z-index: 5;
     }
 
+    /* Кликабельная зона прогресса, удобная для пальца */
     .neo-progress {
         position: relative;
         width: 100%;
@@ -230,6 +223,7 @@
         cursor: pointer;
     }
 
+    /* Тонкая видимая линия прогресса у нижнего края этой зоны */
     .neo-progress-filled {
         position: absolute;
         left: 0;
@@ -240,7 +234,7 @@
         border-radius: 999px;
     }
 
-    /* Меню кнопок остаётся на месте */
+    /* Кнопки управления не поднимать, оставить на месте под видео */
     .neo-controls .neo-bottom {
         padding-bottom: 0;
     }
