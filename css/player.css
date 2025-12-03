@@ -331,43 +331,19 @@
     .neo-play-icon, .neo-fullscreen-icon, .neo-pip-icon { width: 16px; height: 16px; }
 }
 
-/* === МОБИЛЬНАЯ ФИКСА ДЛЯ ПЛЕЕРА №2 (квадрат + нижние углы) === */
+/* === МОБИЛЬНАЯ ВЕРСИЯ: квадратный второй плеер === */
 @media (max-width: 768px) {
 
-    /* Делает блок квадратным и сохраняет скругление */
     #neo-player-2 {
-        aspect-ratio: 1 / 1;
-        border-radius: 8px !important;
-        overflow: hidden !important;
-        position: relative;
+        aspect-ratio: 1 / 1; /* квадрат */
+        overflow: hidden;    /* чтобы видео не вылазило */
     }
 
-    /* Видео и превью полностью заполняют блок */
     #neo-player-2 video,
     #neo-player-2 .neo-preview,
     #neo-player-2 .neo-video {
         object-fit: cover;
-        width: 100% !important;
-        height: 100% !important;
-        border-radius: 8px !important;
-        clip-path: inset(0 round 8px) !important;
+        width: 100%;
+        height: 100%;
     }
-
-    /* Приводим прогресс-бар к общим углам (он закрывал нижние углы) */
-    #neo-player-2 .neo-progress-bar-wrapper {
-        border-bottom-left-radius: 8px !important;
-        border-bottom-right-radius: 8px !important;
-        overflow: hidden !important;
-        background: transparent !important;
-        padding-bottom: 8px !important; /* чтобы не упираться в край */
-    }
-
-    /* Внутренний прогресс тоже должен уважать скругления */
-    #neo-player-2 .neo-progress {
-        border-radius: 8px !important;
-        overflow: hidden !important;
-    }
-    #rec1418234511 {
-    pointer-events: none !important;
-}
 }
