@@ -773,7 +773,7 @@ function runNeoPlayer(wrap, wrapIndex) {
         localStorage.setItem(storageKey, player.currentTime);
 
         if (player.duration && !isDragging && fill) {
-            fill.style.width = (player.currentTime / player.duration * 100) + '%';
+            fill.style.width = (player.currentTime / player.duration) * 100 + '%';
         }
 
         // Hide preview when playback actually started
