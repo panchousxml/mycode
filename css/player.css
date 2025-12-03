@@ -332,20 +332,34 @@
 }
 
 @media (max-width: 768px) {
+
+    /* Квадратная форма плеера */
     #neo-player-2 {
         aspect-ratio: 1 / 1;
         overflow: hidden;
         border-radius: 8px !important;
-        position: relative;
     }
 
-    #neo-player-2 video {
+    /* Видео и превью занимают всю площадь и повторяют форму */
+    #neo-player-2 video,
+    #neo-player-2 .neo-preview,
+    #neo-player-2 .neo-video {
         object-fit: cover;
         width: 100%;
         height: 100%;
+        border-radius: 8px !important;
+        clip-path: inset(0 round 8px);
+        overflow: hidden !important;
+    }
 
-        /* КРИТИЧЕСКОЕ */
-        -webkit-mask-image: radial-gradient(circle, #000 100%, #000 100%);
-        mask-image: radial-gradient(circle, #000 100%, #000 100%);
+    /* FIX нижних углов — прогресс бар обрезает скругление */
+    #neo-player-2 .neo-progress-bar-wrapper,
+    #neo-player-2 .neo-progress,
+    #neo-player-2 .neo-progress-filled {
+        border-bottom-left-radius: 8px !important;
+        border-bottom-right-radius: 8px !important;
+        overflow: hidden !important;
+        clip-path: inset(0 round 8px) !important;
     }
 }
+
