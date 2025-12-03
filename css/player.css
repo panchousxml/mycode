@@ -175,18 +175,35 @@
 }
 
 /* Progress bar */
-.neo-progress {
-    position: absolute; bottom: 0; left: 0;
-    width: 100%; height: 4px;
+.neo-progress-container {
+    position: relative;
+    width: 100%;
+    padding: 8px 12px 0 12px;
     background: transparent;
-    cursor: pointer; transition: height 0.2s;
 }
-.neo-progress:hover { height: 6px; }
+
+.neo-progress {
+    position: relative;
+    width: 100%;
+    height: 28px;
+    background: transparent;
+    cursor: pointer;
+    transition: height 0.2s;
+}
+.neo-progress:hover { height: 32px; }
 .neo-progress-filled {
-    height: 100%; background: #1879AE; width: 0%;
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    transform: none;
+    height: 4px;
+    border-radius: 999px;
+    background: #1879AE;
+    width: 0%;
     transition: width 0.1s linear;
 }
-.neo-progress.neo-active { height: 8px; }
+.neo-progress.neo-active { height: 32px; }
 
 /* Bottom controls */
 .neo-bottom {
@@ -206,32 +223,8 @@
         margin-bottom: 0;
     }
 
-    /* Контейнер для нижнего прогресс-бара — отдельный блок ПОД кнопками */
-    .neo-progress-bar-wrapper {
-        position: static;
+    .neo-progress-container {
         padding: 8px 12px 0 12px;
-        background: transparent;
-    }
-
-    /* Кликабельная зона прогресса, удобная для пальца */
-    .neo-progress {
-        position: relative;
-        width: 100%;
-        height: 28px;
-        padding: 8px 0 4px 0;
-        background: transparent;
-        cursor: pointer;
-    }
-
-    /* Тонкая видимая линия прогресса у нижнего края этой зоны */
-    .neo-progress-filled {
-        position: absolute;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        transform: none;
-        height: 4px;
-        border-radius: 999px;
     }
 
     /* Кнопки управления не поднимать, оставить на месте под видео */
