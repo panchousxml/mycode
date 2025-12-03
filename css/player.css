@@ -335,7 +335,7 @@
     #neo-player-2 {
         aspect-ratio: 1 / 1;
         overflow: hidden;
-        border-radius: 8px !important;   /* ← ВАЖНО: вернуть углы */
+        border-radius: 8px !important;
     }
 
     #neo-player-2 video,
@@ -344,7 +344,7 @@
         object-fit: cover;
         width: 100%;
         height: 100%;
+        border-radius: 8px !important;     /* ← защищаем нижние углы */
+        clip-path: inset(0 round 8px);      /* ← гарантированно обрезает видео по углам */
     }
 }
-
-
