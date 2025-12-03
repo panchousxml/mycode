@@ -334,7 +334,8 @@
 @media (max-width: 768px) {
     #neo-player-2 {
         aspect-ratio: 1 / 1;
-        overflow: hidden;    /* чтобы видео не вылазило за края */
+        overflow: hidden;
+        border-radius: 8px !important;   /* ← ВАЖНО: вернуть углы */
     }
 
     #neo-player-2 video,
@@ -345,4 +346,5 @@
         height: 100%;
     }
 }
+
 
