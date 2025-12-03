@@ -380,12 +380,12 @@ function runNeoPlayer(wrap, wrapIndex) {
                 const lvl = data.frag.level;
                 const levelInfo = hlsInstance.levels[lvl];
                 // console.log(
-                    `🎞 FRAG_LOADED: level=${lvl}, ` +
-                    `height=${levelInfo ? levelInfo.height : 'N/A'}, ` +
-                    `sn=${data.frag.sn}, autoLevelEnabled=${hlsInstance.autoLevelEnabled}, ` +
-                    `currentLevel=${hlsInstance.currentLevel}, nextAutoLevel=${hlsInstance.nextAutoLevel}, ` +
-                    `maxAutoLevel=${hlsInstance.maxAutoLevel}`
-                );
+                //     `🎞 FRAG_LOADED: level=${lvl}, ` +
+                //     `height=${levelInfo ? levelInfo.height : 'N/A'}, ` +
+                //     `sn=${data.frag.sn}, autoLevelEnabled=${hlsInstance.autoLevelEnabled}, ` +
+                //     `currentLevel=${hlsInstance.currentLevel}, nextAutoLevel=${hlsInstance.nextAutoLevel}, ` +
+                //     `maxAutoLevel=${hlsInstance.maxAutoLevel}`
+                // );
             });
 
             if (!hlsInstance.url) {
@@ -573,9 +573,9 @@ function runNeoPlayer(wrap, wrapIndex) {
         controls.style.display = 'block';
 
         // console.log('🎯 showControlsAndPlay', {
-            readyState: player.readyState,
-            duration: player.duration
-        });
+        //     readyState: player.readyState,
+        //     duration: player.duration
+        // });
 
         const tryPlay = () => {
             const buffered = player.buffered.length > 0
