@@ -1,4 +1,7 @@
-console.log('PLAYER JS BUILD', '02-12-2025 00:10 - CLEANED');
+// Debug mode: true = logs ON, false = logs OFF
+const NEO_DEBUG = false;
+
+if (NEO_DEBUG) console.log('PLAYER JS BUILD', '02-12-2025 00:10 - CLEANED');
 
 // ═══════════════════════════════════════════════════════════════
 // КОНФИГ — легко менять данные видео и таймауты
@@ -104,7 +107,7 @@ function runNeoPlayer(wrap, wrapIndex) {
     const videoKey = wrap.dataset.neoId || String(wrapIndex);
     const videoData = CONFIG.videos[videoKey];
 
-    console.log(`🎬 INIT Player ${wrapIndex}`, { videoKey, hls: videoData?.hls });
+    if (NEO_DEBUG) console.log(`🎬 INIT Player ${wrapIndex}`, { videoKey, hls: videoData?.hls });
 
     const isNativeHls = false; // canPlayNativeHls()
 
@@ -561,10 +564,10 @@ function runNeoPlayer(wrap, wrapIndex) {
 
         switch (data.type) {
             case Hls.ErrorTypes.NETWORK_ERROR:
-                console.warn('🔄 NETWORK_ERROR: will resume on play');
+                if (NEO_DEBUG) console.warn('🔄 NETWORK_ERROR: will resume on play');
                 break;
             case Hls.ErrorTypes.MEDIA_ERROR:
-                console.warn('🔄 MEDIA_ERROR: Recovering...');
+                if (NEO_DEBUG) console.warn('🔄 MEDIA_ERROR: Recovering...');
                 hlsInstance?.recoverMediaError();
                 break;
             default:
