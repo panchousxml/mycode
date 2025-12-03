@@ -124,8 +124,8 @@ function runNeoPlayer(wrap, wrapIndex) {
     const btnPip = wrap.querySelector('.neo-pip');
       const vol = wrap.querySelector('.neo-volume');
       const speed = wrap.querySelector('.neo-speed');
-      const bar = document.querySelector('.neo-progress');
-      const fill = document.querySelector('.neo-progress-filled');
+      const bar = wrap.querySelector('.neo-progress');
+      const fill = wrap.querySelector('.neo-progress-filled');
 
       const updateProgressFill = () => {
           if (fill && player.duration) {
@@ -1052,38 +1052,40 @@ function runNeoPlayer(wrap, wrapIndex) {
     // ─────────────────────────────────────────────────────────────
     // SEEK BAR
     // ─────────────────────────────────────────────────────────────
-    bar.addEventListener('mousedown', (e) => {
-        e.preventDefault();
-        handleSeek(e.clientX);
-        isDragging = true;
-        bar.classList.add('neo-active');
-    });
+    if (bar) {
+        bar.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            handleSeek(e.clientX);
+            isDragging = true;
+            bar.classList.add('neo-active');
+        });
 
-    document.addEventListener('mousemove', (e) => {
-        if (!isDragging) return;
-        handleSeek(e.clientX);
-    });
+        document.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+            handleSeek(e.clientX);
+        });
 
-    document.addEventListener('mouseup', () => {
-        if (isDragging) {
-            isDragging = false;
-            bar.classList.remove('neo-active');
-        }
-    });
+        document.addEventListener('mouseup', () => {
+            if (isDragging) {
+                isDragging = false;
+                bar.classList.remove('neo-active');
+            }
+        });
 
-    bar.addEventListener('touchstart', (e) => {
-        if (!isMobile) return;
-        e.preventDefault();
-        const touch = e.touches[0];
-        handleSeek(touch.clientX);
-    });
+        bar.addEventListener('touchstart', (e) => {
+            if (!isMobile) return;
+            e.preventDefault();
+            const touch = e.touches[0];
+            handleSeek(touch.clientX);
+        });
 
-    bar.addEventListener('touchmove', (e) => {
-        if (!isMobile) return;
-        e.preventDefault();
-        const touch = e.touches[0];
-        handleSeek(touch.clientX);
-    });
+        bar.addEventListener('touchmove', (e) => {
+            if (!isMobile) return;
+            e.preventDefault();
+            const touch = e.touches[0];
+            handleSeek(touch.clientX);
+        });
+    }
 
     // ─────────────────────────────────────────────────────────────
     // CONTROLS VISIBILITY
