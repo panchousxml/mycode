@@ -755,8 +755,13 @@ function runNeoPlayer(wrap, wrapIndex) {
     }
 
     // Start video events
-    bigPlay.addEventListener('click', startVideo);
-    preview.addEventListener('click', startVideo);
+    bigPlay.addEventListener('click', () => {
+        startVideo();
+    });
+
+    preview.addEventListener('click', () => {
+        startVideo();
+    });
     wrap.addEventListener('click', (e) => {
         if (e.target === wrap && isPreviewVisible()) {
             startVideo();
@@ -930,8 +935,17 @@ function runNeoPlayer(wrap, wrapIndex) {
     }
 
     // Controls
-    if (btnPlay) btnPlay.onclick = togglePlay;
-    player.onclick = togglePlay;
+    if (btnPlay) {
+        btnPlay.addEventListener('click', (e) => {
+            e.preventDefault();
+            togglePlay();
+        });
+    }
+
+    player.addEventListener('click', (e) => {
+        e.preventDefault();
+        togglePlay();
+    });
     player.addEventListener('touchend', (e) => {
         e.preventDefault();
         togglePlay();
