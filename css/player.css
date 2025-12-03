@@ -330,3 +330,15 @@
     .neo-bottom { gap: 4px; }
     .neo-play-icon, .neo-fullscreen-icon, .neo-pip-icon { width: 16px; height: 16px; }
 }
+
+@media (max-width: 768px) {
+    .neo-player-mobile {
+        aspect-ratio: 1 / 1;
+    }
+
+    .neo-player-mobile video {
+        object-fit: cover;
+        width: 100%;
+        height: 100%;
+    }
+}
