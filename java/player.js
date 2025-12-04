@@ -1,6 +1,18 @@
 // Debug mode: true = logs ON, false = logs OFF
 const NEO_DEBUG = false;
 
+function activateSpinnerAnimation() {
+    requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+            const spinner = document.querySelector('.neo-loader-circle-progress');
+            if (spinner) {
+                spinner.style.transition = 'stroke-dashoffset 0.2s linear';
+                spinner.style.strokeDashoffset = '70';
+            }
+        });
+    });
+}
+
 if (NEO_DEBUG) console.log('PLAYER JS INITIALIZED');
 
 // ═══════════════════════════════════════════════════════════════
@@ -210,6 +222,12 @@ function runNeoPlayer(wrap, wrapIndex) {
         const loaderCircle = loader.querySelector('.neo-loader-circle');
         if (loaderCircle) {
             loaderCircle.classList.remove('neo-loader-spinner');
+        }
+
+        const spinner = wrap.querySelector('.neo-loader-circle-progress');
+        if (spinner) {
+            spinner.style.transition = 'none';
+            spinner.style.strokeDashoffset = '94.2';
         }
     }
 
@@ -1113,6 +1131,7 @@ function runNeoPlayer(wrap, wrapIndex) {
         bar.addEventListener('mousedown', (e) => {
             e.preventDefault();
             showLoaderSpinner(true);
+            activateSpinnerAnimation();
             isFakeSeeking = true;
             handleSeek(e.clientX);
             isDragging = true;
@@ -1135,6 +1154,7 @@ function runNeoPlayer(wrap, wrapIndex) {
             if (!isMobile) return;
             e.preventDefault();
             showLoaderSpinner(true);
+            activateSpinnerAnimation();
             isFakeSeeking = true;
             const touch = e.touches[0];
             handleSeek(touch.clientX);
