@@ -1209,8 +1209,8 @@ function runNeoPlayer(wrap, wrapIndex) {
         setControlsVisibility(true);
     });
 
-    wrap.addEventListener('touchstart', showControls);
     wrap.addEventListener('mousemove', showControls);
+    wrap.addEventListener('touchstart', showControls);
 }
 
 // ═══════════════════════════════════════════════════════════════
