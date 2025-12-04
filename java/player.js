@@ -1173,26 +1173,57 @@ function runNeoPlayer(wrap, wrapIndex) {
     // ─────────────────────────────────────────────────────────────
     // CONTROLS VISIBILITY
     // ─────────────────────────────────────────────────────────────
+    function setControlsVisibility(visible) {
+        controls.style.opacity = visible ? '1' : '0';
+    }
+
+    function setProgressVisibility(visible) {
+        if (!progressWrapper) return;
+        progressWrapper.style.opacity = visible ? '1' : '0';
+    }
+
+    function showFullUI() {
+        setControlsVisibility(true);
+        setProgressVisibility(true);
+    }
+
     let controlsTimeout;
 
-    function showControls() {
-        controls.style.opacity = '1';
-        if (progressWrapper) {
-            progressWrapper.style.opacity = '1';
-        }
+    function autoHideUI() {
         clearTimeout(controlsTimeout);
+
         controlsTimeout = setTimeout(() => {
-            if (!player.paused) {
-                controls.style.opacity = '0';
-                if (progressWrapper) {
-                    progressWrapper.style.opacity = '0';
-                }
+            if (!player.paused && !player.ended) {
+                setControlsVisibility(false);
+                setProgressVisibility(false);
             }
         }, 3000);
     }
 
-    wrap.addEventListener('touchstart', showControls);
-    wrap.addEventListener('mousemove', showControls);
+    player.addEventListener('play', () => {
+        showFullUI();
+        autoHideUI();
+    });
+
+    player.addEventListener('pause', () => {
+        setControlsVisibility(true);
+        setProgressVisibility(false);
+    });
+
+    player.addEventListener('ended', () => {
+        setControlsVisibility(true);
+        setProgressVisibility(false);
+    });
+
+    wrap.addEventListener('mousemove', () => {
+        showFullUI();
+        autoHideUI();
+    });
+
+    wrap.addEventListener('touchstart', () => {
+        showFullUI();
+        autoHideUI();
+    });
 }
 
 // ═══════════════════════════════════════════════════════════════
