@@ -1175,21 +1175,39 @@ function runNeoPlayer(wrap, wrapIndex) {
     // ─────────────────────────────────────────────────────────────
     let controlsTimeout;
 
-    function showControls() {
-        controls.style.opacity = '1';
+    function setControlsVisibility(visible) {
+        const opacity = visible ? '1' : '0';
+
+        controls.style.opacity = opacity;
+
         if (progressWrapper) {
-            progressWrapper.style.opacity = '1';
+            progressWrapper.style.opacity = opacity;
         }
+    }
+
+    function showControls() {
+        setControlsVisibility(true);
+
         clearTimeout(controlsTimeout);
+
         controlsTimeout = setTimeout(() => {
             if (!player.paused) {
-                controls.style.opacity = '0';
-                if (progressWrapper) {
-                    progressWrapper.style.opacity = '0';
-                }
+                setControlsVisibility(false);
             }
         }, 3000);
     }
+
+    player.addEventListener('pause', () => {
+        setControlsVisibility(true);
+    });
+
+    player.addEventListener('play', () => {
+        showControls();
+    });
+
+    player.addEventListener('ended', () => {
+        setControlsVisibility(true);
+    });
 
     wrap.addEventListener('touchstart', showControls);
     wrap.addEventListener('mousemove', showControls);
