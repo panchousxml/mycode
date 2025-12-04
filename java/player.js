@@ -41,6 +41,7 @@ document.addEventListener("DOMContentLoaded", () => {
     requestAnimationFrame(checkWrapper);
 });
 
+let isFakeSeeking = false;
 let preloadSetupDone = false;
 function checkWrapper() {
     const wrappers = document.querySelectorAll('.neo-player-wrapper');
@@ -392,6 +393,12 @@ function runNeoPlayer(wrap, wrapIndex) {
             hlsInstance.on(Hls.Events.MANIFEST_PARSED, onManifestParsed);
             hlsInstance.on(Hls.Events.ERROR, onHlsError);
             hlsInstance.on(Hls.Events.LEVEL_SWITCHED, updateQualityLabel);
+            hlsInstance.on(Hls.Events.FRAG_CHANGED, () => {
+                if (isFakeSeeking) {
+                    isFakeSeeking = false;
+                    hideLoaderSpinner();
+                }
+            });
             hlsInstance.on(Hls.Events.FRAG_LOADED, (event, data) => {
                 const lvl = data.frag.level;
                 const levelInfo = hlsInstance.levels[lvl];
@@ -649,6 +656,9 @@ function runNeoPlayer(wrap, wrapIndex) {
                         player.play()
                             .then(() => {
                                 // console.log('✅ play() resolved');
+                                if (isFakeSeeking) {
+                                    isFakeSeeking = false;
+                                }
                                 hideLoaderSpinner();
                             })
                             .catch(err => console.error('❌ play() failed:', err));
@@ -662,6 +672,9 @@ function runNeoPlayer(wrap, wrapIndex) {
             player.play()
                 .then(() => {
                     // console.log('✅ play() resolved');
+                    if (isFakeSeeking) {
+                        isFakeSeeking = false;
+                    }
                     hideLoaderSpinner();
                 })
                 .catch(err => console.error('❌ play() failed:', err));
@@ -895,9 +908,16 @@ function runNeoPlayer(wrap, wrapIndex) {
         }, CONFIG.PAUSE_SHOW_PREVIEW_DELAY);
     });
 
+    player.addEventListener('canplay', () => {
+        if (isFakeSeeking) {
+            isFakeSeeking = false;
+            hideLoaderSpinner();
+        }
+    });
+
     player.addEventListener('play', () => {
         // console.log(`[Video ${wrapIndex}] PLAY event`);
-        
+
         if (pauseStopLoadTimeout) {
             clearTimeout(pauseStopLoadTimeout);
             pauseStopLoadTimeout = null;
@@ -908,6 +928,11 @@ function runNeoPlayer(wrap, wrapIndex) {
         if (hlsInstance && manifestReady) {
             // console.log('▶️ Play: resuming segment loading');
             hlsInstance.startLoad();
+        }
+
+        if (isFakeSeeking) {
+            isFakeSeeking = false;
+            hideLoaderSpinner();
         }
     });
 
@@ -964,6 +989,11 @@ function runNeoPlayer(wrap, wrapIndex) {
                 .then(() => {
                     clearInterval(replayFakeProgress);
                     updateProgressCircle(progressCircle, 100);
+                    if (isFakeSeeking) {
+                        isFakeSeeking = false;
+                        hideLoaderSpinner();
+                        return;
+                    }
                     setTimeout(() => hideLoaderSpinner(), 150);
                 })
                 .catch(err => {
@@ -1082,6 +1112,8 @@ function runNeoPlayer(wrap, wrapIndex) {
     if (bar) {
         bar.addEventListener('mousedown', (e) => {
             e.preventDefault();
+            showLoaderSpinner(true);
+            isFakeSeeking = true;
             handleSeek(e.clientX);
             isDragging = true;
             bar.classList.add('neo-active');
@@ -1102,8 +1134,12 @@ function runNeoPlayer(wrap, wrapIndex) {
         bar.addEventListener('touchstart', (e) => {
             if (!isMobile) return;
             e.preventDefault();
+            showLoaderSpinner(true);
+            isFakeSeeking = true;
             const touch = e.touches[0];
             handleSeek(touch.clientX);
+            isDragging = true;
+            bar.classList.add('neo-active');
         });
 
         bar.addEventListener('touchmove', (e) => {
