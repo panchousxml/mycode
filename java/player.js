@@ -1,6 +1,8 @@
 // Debug mode: true = logs ON, false = logs OFF
 const NEO_DEBUG = false;
 
+let forceHideProgress = false;
+
 function activateSpinnerAnimation() {
     requestAnimationFrame(() => {
         requestAnimationFrame(() => {
@@ -872,6 +874,11 @@ function runNeoPlayer(wrap, wrapIndex) {
 
         // console.log(`  BEFORE: controls=${controls.style.display}, bigPlay=${bigPlay.style.display}, preview=${preview.style.display}, replay=${replay ? replay.style.display : 'N/A'}`);
 
+        forceHideProgress = true;
+
+        setControlsVisibility(true);
+        setProgressVisibility(false);
+
         controls.style.display = 'none';
         bigPlay.style.display = 'none';
         preview.style.display = 'none';
@@ -983,6 +990,7 @@ function runNeoPlayer(wrap, wrapIndex) {
     // Replay
     if (replay) {
         replay.addEventListener('click', () => {
+            forceHideProgress = false;
             player.currentTime = 0;
 
             replay.style.display = 'none';
@@ -991,6 +999,9 @@ function runNeoPlayer(wrap, wrapIndex) {
             preview.style.display = 'none';
 
             localStorage.removeItem(storageKey);
+
+            showFullUI();
+            autoHideUI();
 
             const { progressCircle } = showLoaderSpinner(true);
             let replayProgress = 0;
@@ -1179,26 +1190,38 @@ function runNeoPlayer(wrap, wrapIndex) {
         const opacity = visible ? '1' : '0';
 
         controls.style.opacity = opacity;
-
-        if (progressWrapper) {
-            progressWrapper.style.opacity = opacity;
-        }
     }
 
-    function showControls() {
-        setControlsVisibility(true);
+    function setProgressVisibility(visible) {
+        if (!progressWrapper) return;
 
+        const finalVisible = visible && !forceHideProgress;
+        progressWrapper.style.opacity = finalVisible ? '1' : '0';
+    }
+
+    function showFullUI() {
+        setControlsVisibility(true);
+        setProgressVisibility(!forceHideProgress);
+    }
+
+    function autoHideUI() {
         clearTimeout(controlsTimeout);
 
         controlsTimeout = setTimeout(() => {
             if (!player.paused) {
                 setControlsVisibility(false);
+                setProgressVisibility(false);
             }
         }, 3000);
     }
 
+    function showControls() {
+        showFullUI();
+        autoHideUI();
+    }
+
     player.addEventListener('pause', () => {
-        setControlsVisibility(true);
+        showFullUI();
     });
 
     player.addEventListener('play', () => {
@@ -1206,7 +1229,7 @@ function runNeoPlayer(wrap, wrapIndex) {
     });
 
     player.addEventListener('ended', () => {
-        setControlsVisibility(true);
+        showFullUI();
     });
 
     wrap.addEventListener('mousemove', showControls);
