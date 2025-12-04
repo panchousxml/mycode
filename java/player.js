@@ -164,9 +164,6 @@ function runNeoPlayer(wrap, wrapIndex) {
         loader.appendChild(loaderText);
     }
 
-    let loaderCircle = loader.querySelector('.neo-loader-circle');
-    let progressCircle = loaderCircle?.querySelector('.neo-loader-circle-progress') || null;
-
     // Состояние
     let isDragging = false;
     let pauseTimeout = null;
@@ -178,11 +175,12 @@ function runNeoPlayer(wrap, wrapIndex) {
     // ─────────────────────────────────────────────────────────────
     // LOADER HELPERS
     // ─────────────────────────────────────────────────────────────
-    function showLoaderSpinner(initial = false) {
-        if (!loader) return;
+    function showLoaderSpinner(resetProgress = true) {
+        if (!loader) return {};
 
         loader.style.display = 'flex';
 
+        let loaderCircle = loader.querySelector('.neo-loader-circle');
         if (!loaderCircle) {
             loaderCircle = document.createElement('div');
             loaderCircle.className = 'neo-loader-circle';
@@ -196,22 +194,25 @@ function runNeoPlayer(wrap, wrapIndex) {
         }
 
         loaderCircle.classList.add('neo-loader-spinner');
-        progressCircle = loaderCircle.querySelector('.neo-loader-circle-progress');
 
-        if (progressCircle && initial) {
+        const progressCircle = loaderCircle.querySelector('.neo-loader-circle-progress');
+        if (progressCircle && resetProgress) {
             progressCircle.style.strokeDashoffset = '94.2';
         }
+
+        return { loaderCircle, progressCircle };
     }
 
     function hideLoaderSpinner() {
         if (!loader) return;
         loader.style.display = 'none';
+        const loaderCircle = loader.querySelector('.neo-loader-circle');
         if (loaderCircle) {
             loaderCircle.classList.remove('neo-loader-spinner');
         }
     }
 
-    function updateProgressCircle(percent) {
+    function updateProgressCircle(progressCircle, percent) {
         if (!progressCircle) return;
         requestAnimationFrame(() => {
             progressCircle.style.strokeDashoffset = 94.2 * (1 - percent / 100);
@@ -362,12 +363,12 @@ function runNeoPlayer(wrap, wrapIndex) {
 
             // Прогресс загрузки
             let loadProgress = 0;
-            showLoaderSpinner(false);
+            const { progressCircle } = showLoaderSpinner(false);
 
             const fakeProgress = setInterval(() => {
                 if (loadProgress < 20) {
                     loadProgress += Math.random() * 5;
-                    updateProgressCircle(Math.min(20, loadProgress));
+                    updateProgressCircle(progressCircle, Math.min(20, loadProgress));
                 } else {
                     clearInterval(fakeProgress);
                 }
@@ -375,17 +376,17 @@ function runNeoPlayer(wrap, wrapIndex) {
 
             hlsInstance.on(Hls.Events.FRAGMENT_LOADING, () => {
                 loadProgress = Math.max(20, loadProgress);
-                updateProgressCircle(loadProgress);
+                updateProgressCircle(progressCircle, loadProgress);
             });
 
             hlsInstance.on(Hls.Events.FRAGMENT_LOADED, () => {
                 loadProgress = Math.min(85, loadProgress + 15);
-                updateProgressCircle(loadProgress);
+                updateProgressCircle(progressCircle, loadProgress);
             });
 
             hlsInstance.on(Hls.Events.FRAG_BUFFERED, () => {
                 loadProgress = Math.min(90, loadProgress + 5);
-                updateProgressCircle(loadProgress);
+                updateProgressCircle(progressCircle, loadProgress);
             });
 
             hlsInstance.on(Hls.Events.MANIFEST_PARSED, onManifestParsed);
@@ -535,20 +536,20 @@ function runNeoPlayer(wrap, wrapIndex) {
 
         if (data?.type === 'mediaError' && ['bufferStalledError', 'bufferNudgeOnStall'].includes(data?.details)) {
             // console.log('⚠️ Buffer stall detected, showing loader');
-            showLoaderSpinner(true);
+            const { progressCircle } = showLoaderSpinner(true);
             loaderText.innerText = '';
 
             let stallProgress = 10;
             const stallInterval = setInterval(() => {
                 if (stallProgress < 90) {
                     stallProgress += Math.random() * 6;
-                    updateProgressCircle(Math.min(90, stallProgress));
+                    updateProgressCircle(progressCircle, Math.min(90, stallProgress));
                 }
             }, 400);
 
             const onCanPlay = () => {
                 clearInterval(stallInterval);
-                updateProgressCircle(100);
+                updateProgressCircle(progressCircle, 100);
                 setTimeout(() => hideLoaderSpinner(), 200);
                 // console.log('✅ Buffer recovered');
                 player.removeEventListener('canplay', onCanPlay);
@@ -707,7 +708,7 @@ function runNeoPlayer(wrap, wrapIndex) {
         const wasPaused = player.paused;
         const t = player.currentTime;
 
-        showLoaderSpinner(true);
+        const { progressCircle } = showLoaderSpinner(true);
         let qualityProgress = 0;
 
         loaderText.innerText = '';
@@ -715,7 +716,7 @@ function runNeoPlayer(wrap, wrapIndex) {
         const qualityFakeProgress = setInterval(() => {
             if (qualityProgress < 40) {
                 qualityProgress += Math.random() * 8;
-                updateProgressCircle(Math.min(40, qualityProgress));
+                updateProgressCircle(progressCircle, Math.min(40, qualityProgress));
             }
         }, 300);
 
@@ -725,7 +726,7 @@ function runNeoPlayer(wrap, wrapIndex) {
             // console.log('📌 Fragment changed, restoring position:', t);
 
             clearInterval(qualityFakeProgress);
-            updateProgressCircle(100);
+            updateProgressCircle(progressCircle, 100);
             setTimeout(() => hideLoaderSpinner(), 150);
 
             player.currentTime = t;
@@ -913,6 +914,29 @@ function runNeoPlayer(wrap, wrapIndex) {
     player.onplay = () => setPlayIcon(false);
     player.onpause = () => setPlayIcon(true);
 
+    // Спиннер при перемотке
+    player.addEventListener('seeking', () => {
+        // Если длительность неизвестна, не включаем спиннер
+        if (!player.duration || !isFinite(player.duration)) return;
+
+        showLoaderSpinner(true);
+    });
+
+    player.addEventListener('seeked', () => {
+        // Если уже есть данные для воспроизведения — сразу убираем
+        if (player.readyState >= 2) {
+            hideLoaderSpinner();
+            return;
+        }
+
+        // Если ещё не готово — ждём canplay
+        const onCanPlayAfterSeek = () => {
+            hideLoaderSpinner();
+            player.removeEventListener('canplay', onCanPlayAfterSeek);
+        };
+        player.addEventListener('canplay', onCanPlayAfterSeek);
+    });
+
     // Replay
     if (replay) {
         replay.addEventListener('click', () => {
@@ -925,12 +949,12 @@ function runNeoPlayer(wrap, wrapIndex) {
 
             localStorage.removeItem(storageKey);
 
-            showLoaderSpinner(true);
+            const { progressCircle } = showLoaderSpinner(true);
             let replayProgress = 0;
             const replayFakeProgress = setInterval(() => {
                 if (replayProgress < 40) {
                     replayProgress += Math.random() * 8;
-                    updateProgressCircle(Math.min(40, replayProgress));
+                    updateProgressCircle(progressCircle, Math.min(40, replayProgress));
                 } else {
                     clearInterval(replayFakeProgress);
                 }
@@ -939,7 +963,7 @@ function runNeoPlayer(wrap, wrapIndex) {
             player.play()
                 .then(() => {
                     clearInterval(replayFakeProgress);
-                    updateProgressCircle(100);
+                    updateProgressCircle(progressCircle, 100);
                     setTimeout(() => hideLoaderSpinner(), 150);
                 })
                 .catch(err => {
