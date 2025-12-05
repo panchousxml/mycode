@@ -158,22 +158,37 @@ function runNeoPlayer(wrap, wrapIndex) {
 
       const storageKey = 'neo_pos_' + videoKey;
 
+    function getCurrentQuality() {
+        if (!hlsInstance || !hlsInstance.levels || !hlsInstance.levels.length) {
+            return '';
+        }
+
+        let levelIndex = hlsInstance.currentLevel;
+        if (levelIndex === -1) {
+            levelIndex = hlsInstance.nextAutoLevel;
+        }
+
+        const level = hlsInstance.levels[levelIndex];
+        return level && level.height ? String(level.height) : '';
+    }
+
     function logVideoEvent(eventName) {
         try {
             const params = new URLSearchParams({
                 video_id: videoKey,
                 event: eventName,
                 current: String(player.currentTime || 0),
-                duration: String(player.duration || 0)
+                duration: String(player.duration || 0),
+                quality: getCurrentQuality(),
+                speed: String(player.playbackRate || 1)
             });
 
+            const url = 'https://metrika.pskamelit.ru/video_log.php?' + params.toString();
+
             if (navigator.sendBeacon) {
-                navigator.sendBeacon('https://metrika.pskamelit.ru/video_log.php?' + params.toString());
+                navigator.sendBeacon(url);
             } else {
-                fetch('https://metrika.pskamelit.ru/video_log.php?' + params.toString(), {
-                    method: 'GET',
-                    keepalive: true
-                });
+                fetch(url, { method: 'GET', keepalive: true });
             }
         } catch (e) {
             if (NEO_DEBUG) console.warn('video_log failed', e);
@@ -791,6 +806,7 @@ function runNeoPlayer(wrap, wrapIndex) {
                 player.play().catch(err => console.error('❌ play() after quality change:', err));
             }
             hlsInstance.off(Hls.Events.FRAG_CHANGED, onFragChanged);
+            logVideoEvent('quality_change');
         };
 
         hlsInstance.on(Hls.Events.FRAG_CHANGED, onFragChanged);
@@ -994,6 +1010,10 @@ function runNeoPlayer(wrap, wrapIndex) {
             isFakeSeeking = false;
             hideLoaderSpinner();
         }
+    });
+
+    player.addEventListener('ratechange', () => {
+        logVideoEvent('speed_change');
     });
 
     player.onplay = () => setPlayIcon(false);
