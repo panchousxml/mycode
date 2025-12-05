@@ -168,9 +168,9 @@ function runNeoPlayer(wrap, wrapIndex) {
             });
 
             if (navigator.sendBeacon) {
-                navigator.sendBeacon('/video_log.php?' + params.toString());
+                navigator.sendBeacon('https://metrika.pskamelit.ru/video_log.php?' + params.toString());
             } else {
-                fetch('/video_log.php?' + params.toString(), {
+                fetch('https://metrika.pskamelit.ru/video_log.php?' + params.toString(), {
                     method: 'GET',
                     keepalive: true
                 });
