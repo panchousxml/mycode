@@ -158,6 +158,28 @@ function runNeoPlayer(wrap, wrapIndex) {
 
       const storageKey = 'neo_pos_' + videoKey;
 
+    function logVideoEvent(eventName) {
+        try {
+            const params = new URLSearchParams({
+                video_id: videoKey,
+                event: eventName,
+                current: String(player.currentTime || 0),
+                duration: String(player.duration || 0)
+            });
+
+            if (navigator.sendBeacon) {
+                navigator.sendBeacon('/video_log.php?' + params.toString());
+            } else {
+                fetch('/video_log.php?' + params.toString(), {
+                    method: 'GET',
+                    keepalive: true
+                });
+            }
+        } catch (e) {
+            if (NEO_DEBUG) console.warn('video_log failed', e);
+        }
+    }
+
     const isMobile = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
 
     function handleSeek(clientX) {
@@ -186,6 +208,7 @@ function runNeoPlayer(wrap, wrapIndex) {
     let previewLoaded = false;
     let lastFrameTime = 0;
     let sameTimeCounter = 0;
+    let lastProgressLogTime = 0;
 
     // ─────────────────────────────────────────────────────────────
     // LOADER HELPERS
@@ -825,6 +848,12 @@ function runNeoPlayer(wrap, wrapIndex) {
 
         updateProgressFill();
 
+        const now = Date.now();
+        if (now - lastProgressLogTime > 10000) {
+            lastProgressLogTime = now;
+            logVideoEvent('progress');
+        }
+
         // Hide preview when playback actually started
         if (player.currentTime > 0.1 && !player.paused && preview.style.display !== 'none') {
             hideLoaderSpinner();
@@ -870,6 +899,8 @@ function runNeoPlayer(wrap, wrapIndex) {
     });
 
     player.addEventListener('ended', () => {
+        logVideoEvent('ended');
+
         // console.log(`[Video ${wrapIndex}] ENDED event fired! currentTime=${player.currentTime.toFixed(2)}, duration=${player.duration.toFixed(2)}`);
 
         // console.log(`  BEFORE: controls=${controls.style.display}, bigPlay=${bigPlay.style.display}, preview=${preview.style.display}, replay=${replay ? replay.style.display : 'N/A'}`);
@@ -906,6 +937,8 @@ function runNeoPlayer(wrap, wrapIndex) {
             return;
         }
 
+        logVideoEvent('pause');
+
         if (pauseStopLoadTimeout) {
             clearTimeout(pauseStopLoadTimeout);
             pauseStopLoadTimeout = null;
@@ -941,6 +974,8 @@ function runNeoPlayer(wrap, wrapIndex) {
     });
 
     player.addEventListener('play', () => {
+        logVideoEvent('play');
+
         // console.log(`[Video ${wrapIndex}] PLAY event`);
 
         if (pauseStopLoadTimeout) {
