@@ -355,6 +355,9 @@ function runNeoPlayer(wrap, wrapIndex) {
 
     // Начальное состояние
     preview.style.display = 'block';
+    if (progressWrapper) {
+        progressWrapper.style.opacity = '0';
+    }
     bigPlay.style.display = 'flex';
     player.style.display = 'none';
     controls.style.display = 'none';
@@ -485,6 +488,9 @@ function runNeoPlayer(wrap, wrapIndex) {
             hideLoaderSpinner();
             bigPlay.style.display = 'flex';
             preview.style.display = 'block';
+            if (progressWrapper) {
+                progressWrapper.style.opacity = '0';
+            }
         }
     }
 
@@ -926,6 +932,10 @@ function runNeoPlayer(wrap, wrapIndex) {
         setControlsVisibility(true);
         setProgressVisibility(false);
 
+        if (progressWrapper) {
+            progressWrapper.style.opacity = '0';
+        }
+
         controls.style.display = 'none';
         bigPlay.style.display = 'none';
         preview.style.display = 'none';
@@ -940,6 +950,10 @@ function runNeoPlayer(wrap, wrapIndex) {
 
     player.addEventListener('pause', () => {
         // console.log(`[Video ${wrapIndex}] PAUSE fired. player.ended=${player.ended}`);
+
+        if (progressWrapper) {
+            progressWrapper.style.opacity = '0';
+        }
 
         if (isDragging) {
             // console.log(`  → isDragging=true, returning`);
@@ -977,6 +991,9 @@ function runNeoPlayer(wrap, wrapIndex) {
                 preview.style.display = 'block';
                 player.style.display = 'none';
                 controls.style.display = 'none';
+                if (progressWrapper) {
+                    progressWrapper.style.opacity = '0';
+                }
                 setPlayIcon(true);
             }
         }, CONFIG.PAUSE_SHOW_PREVIEW_DELAY);
@@ -1256,26 +1273,32 @@ function runNeoPlayer(wrap, wrapIndex) {
 
     function showFullUI() {
         setControlsVisibility(true);
-        setProgressVisibility(!forceHideProgress);
+        setProgressVisibility(!player.paused);
+    }
+
+    function hideControls() {
+        if (!player.paused) {
+            setControlsVisibility(false);
+            setProgressVisibility(false);
+        }
     }
 
     function autoHideUI() {
         clearTimeout(controlsTimeout);
 
-        controlsTimeout = setTimeout(() => {
-            if (!player.paused) {
-                setControlsVisibility(false);
-                setProgressVisibility(false);
-            }
-        }, 3000);
+        controlsTimeout = setTimeout(hideControls, 3000);
     }
 
     function showControls() {
-        showFullUI();
-        autoHideUI();
+        setControlsVisibility(true);
+        setProgressVisibility(!player.paused);
+
+        clearTimeout(controlsTimeout);
+        controlsTimeout = setTimeout(hideControls, 3000);
     }
 
     player.addEventListener('pause', () => {
+        if (progressWrapper) progressWrapper.style.opacity = '0';
         showFullUI();
     });
 
