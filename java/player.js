@@ -42,6 +42,22 @@ const CONFIG = {
     }
 };
 
+// SESSION FOR VIDEO LOGS
+let videoSessionId = null;
+
+if (window.NEO_SESSION_ID && typeof window.NEO_SESSION_ID === 'string' && window.NEO_SESSION_ID.length > 0) {
+    // Используем тот же ID, что и в visitors.log
+    videoSessionId = window.NEO_SESSION_ID;
+} else {
+    // Fallback на случай, если по какой-то причине NEO_SESSION_ID не передан
+    videoSessionId = 'sess_' + Math.random().toString(16).slice(2) + Date.now().toString(16);
+}
+
+// Временно для проверки:
+if (window.console && console.log) {
+    console.log('NEO VIDEO SESSION', videoSessionId);
+}
+
 const ICONS = {
     play: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>',
     pause: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z"/></svg>',
@@ -175,6 +191,7 @@ function runNeoPlayer(wrap, wrapIndex) {
     function logVideoEvent(eventName) {
         try {
             const params = new URLSearchParams({
+                sessionId: videoSessionId,
                 video_id: videoKey,
                 event: eventName,
                 current: String(player.currentTime || 0),
