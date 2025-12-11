@@ -2,11 +2,19 @@
 
 declare(strict_types=1);
 
-$cacheFile = __DIR__ . '/ip_city_cache.php';
-$ipCache = file_exists($cacheFile) ? include $cacheFile : [];
-if (!is_array($ipCache)) {
-    $ipCache = [];
+$cityCacheFile = __DIR__ . '/ip_city_cache.php';
+$IP_CITY_CACHE = [];
+
+if (file_exists($cityCacheFile)) {
+    $loaded = include $cityCacheFile;
+    if (is_array($loaded)) {
+        $IP_CITY_CACHE = $loaded;
+    }
 }
+
+$MANUAL_CITY_OVERRIDES = [
+    '91.215.90.178' => 'Sochi',
+];
 
 function getClientIp(): string
 {
@@ -52,22 +60,32 @@ function getCityByIp(string $ip): string
     return 'UNKNOWN';
 }
 
-function getCityByIpCached(string $ip, array &$ipCache, string $cacheFile): string
+function getCityByIpCached(string $ip, array &$cache, string $cacheFile): string
 {
-    if (array_key_exists($ip, $ipCache)) {
-        return $ipCache[$ip];
+    if (isset($cache[$ip]) && $cache[$ip] !== 'UNKNOWN') {
+        return $cache[$ip];
+    }
+
+    if (isset($cache[$ip]) && $cache[$ip] === 'UNKNOWN') {
+        return 'UNKNOWN';
     }
 
     $city = getCityByIp($ip);
-    $ipCache[$ip] = $city;
+    $cache[$ip] = $city;
 
-    file_put_contents($cacheFile, '<?php return ' . var_export($ipCache, true) . ';', LOCK_EX);
+    file_put_contents($cacheFile, '<?php return ' . var_export($cache, true) . ';', LOCK_EX);
 
     return $city;
 }
 
 $ip = getClientIp();
-$city = getCityByIpCached($ip, $ipCache, $cacheFile);
+$city = getCityByIpCached($ip, $IP_CITY_CACHE, $cityCacheFile);
+
+if (isset($MANUAL_CITY_OVERRIDES[$ip])) {
+    $city = $MANUAL_CITY_OVERRIDES[$ip];
+    $IP_CITY_CACHE[$ip] = $city;
+    file_put_contents($cityCacheFile, '<?php return ' . var_export($IP_CITY_CACHE, true) . ';', LOCK_EX);
+}
 
 header('Content-Type: application/json; charset=utf-8');
 echo json_encode([
