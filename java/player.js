@@ -1,6 +1,41 @@
 // Debug mode: true = logs ON, false = logs OFF
 const NEO_DEBUG = false;
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Аналитика
+// ─────────────────────────────────────────────────────────────────────────────
+const ANALYTICS_ORIGIN = 'https://pskamelit.ru';
+const ANALYTICS_ENDPOINT = '/video.php';
+const ANALYTICS_DEBUG_LOG = true;
+
+let fallbackSessionId = null;
+
+function getCookie(name) {
+    const match = document.cookie
+        .split('; ')
+        .find(row => row.startsWith(name + '='));
+
+    return match ? decodeURIComponent(match.split('=')[1]) : '';
+}
+
+function getVideoSessionId() {
+    if (window.NEO_SESSION_ID) {
+        return window.NEO_SESSION_ID;
+    }
+
+    const cookieSession = getCookie('neo_session_id');
+    if (cookieSession) {
+        return cookieSession;
+    }
+
+    if (!fallbackSessionId) {
+        fallbackSessionId = `fallback_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+        console.warn('[video-analytics] Using fallback sessionId — analytics.js not loaded?');
+    }
+
+    return fallbackSessionId;
+}
+
 let forceHideProgress = false;
 
 function activateSpinnerAnimation() {
@@ -172,28 +207,49 @@ function runNeoPlayer(wrap, wrapIndex) {
         return level && level.height ? String(level.height) : '';
     }
 
-    function logVideoEvent(eventName) {
-        try {
-            const params = new URLSearchParams({
-                video_id: videoKey,
-                event: eventName,
-                current: String(player.currentTime || 0),
-                duration: String(player.duration || 0),
-                quality: getCurrentQuality(),
-                speed: String(player.playbackRate || 1)
+    function logVideoEvent(videoId, event, position, duration, quality, speed) {
+        const videoSessionId = getVideoSessionId();
+
+        if (ANALYTICS_DEBUG_LOG) {
+            console.log('logVideoEvent payload', {
+                sessionId: videoSessionId,
+                videoId,
+                event,
+                position,
+                duration,
+                quality,
+                speed
             });
-
-            const url = 'https://metrika.pskamelit.ru/video_log.php?' + params.toString();
-
-            if (navigator.sendBeacon) {
-                navigator.sendBeacon(url);
-            } else {
-                fetch(url, { method: 'GET', keepalive: true });
-            }
-        } catch (e) {
-            if (NEO_DEBUG) console.warn('video_log failed', e);
         }
+
+        const payload = new URLSearchParams({
+            sessionId: videoSessionId || '',
+            videoId: videoId || '',
+            event: event || '',
+            pos: position !== undefined ? position : '',
+            dur: duration !== undefined ? duration : '',
+            quality: quality !== undefined ? quality : '',
+            speed: speed !== undefined ? speed : '',
+        });
+
+        fetch(`${ANALYTICS_ORIGIN}${ANALYTICS_ENDPOINT}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: payload.toString(),
+            credentials: 'include',
+        }).catch(() => {});
     }
+
+    const sendVideoAnalytics = (eventName) => {
+        logVideoEvent(
+            videoKey,
+            eventName,
+            player.currentTime,
+            player.duration,
+            getCurrentQuality(),
+            player.playbackRate
+        );
+    };
 
     const isMobile = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
 
@@ -812,7 +868,7 @@ function runNeoPlayer(wrap, wrapIndex) {
                 player.play().catch(err => console.error('❌ play() after quality change:', err));
             }
             hlsInstance.off(Hls.Events.FRAG_CHANGED, onFragChanged);
-            logVideoEvent('quality_change');
+            sendVideoAnalytics('qualitychange');
         };
 
         hlsInstance.on(Hls.Events.FRAG_CHANGED, onFragChanged);
@@ -873,7 +929,7 @@ function runNeoPlayer(wrap, wrapIndex) {
         const now = Date.now();
         if (now - lastProgressLogTime > 10000) {
             lastProgressLogTime = now;
-            logVideoEvent('progress');
+            sendVideoAnalytics('progress');
         }
 
         // Hide preview when playback actually started
@@ -921,7 +977,7 @@ function runNeoPlayer(wrap, wrapIndex) {
     });
 
     player.addEventListener('ended', () => {
-        logVideoEvent('ended');
+        sendVideoAnalytics('ended');
 
         // console.log(`[Video ${wrapIndex}] ENDED event fired! currentTime=${player.currentTime.toFixed(2)}, duration=${player.duration.toFixed(2)}`);
 
@@ -967,7 +1023,7 @@ function runNeoPlayer(wrap, wrapIndex) {
             return;
         }
 
-        logVideoEvent('pause');
+        sendVideoAnalytics('pause');
 
         if (pauseStopLoadTimeout) {
             clearTimeout(pauseStopLoadTimeout);
@@ -1007,7 +1063,7 @@ function runNeoPlayer(wrap, wrapIndex) {
     });
 
     player.addEventListener('play', () => {
-        logVideoEvent('play');
+        sendVideoAnalytics('play');
 
         // console.log(`[Video ${wrapIndex}] PLAY event`);
 
@@ -1030,7 +1086,7 @@ function runNeoPlayer(wrap, wrapIndex) {
     });
 
     player.addEventListener('ratechange', () => {
-        logVideoEvent('speed_change');
+        sendVideoAnalytics('ratechange');
     });
 
     player.onplay = () => setPlayIcon(false);
